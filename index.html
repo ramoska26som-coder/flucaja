@@ -335,7 +335,7 @@
     <div class="setup-error" id="setupError"></div>
     <div class="setup-field">
       <label for="scriptUrlInput">URL del Web App (Apps Script)</label>
-      <input type="url" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/AKfycbzi4F0mrRpTmDlM0HO_YRyxmik8eLHOzBaRh6pELltL2DzguFp3Wm5TopZEuP2_S4jAsQ/exec">
+      <input type="url" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
       <div class="setup-hint">
         Obtén esta URL desde <strong>Implementar → Nueva implementación</strong> en el editor de Apps Script.
         Consulta el <a href="README.md" target="_blank">README.md</a> para instrucciones paso a paso.
@@ -563,6 +563,13 @@
 var DENOMINACIONES = [500,200,100,50,20,10,5,2,1];
 var URL_KEY = "flujoCajaScriptUrl";
 
+// ================================================================
+// CONFIGURACIÓN — PEGA AQUÍ LA URL DE TU APPS SCRIPT WEB APP
+// Ej: "https://script.google.com/macros/s/AKfycb.../exec"
+// Si está vacío, la app pedirá la URL la primera vez.
+// ================================================================
+var URL_FIJA = "";
+
 var ICONS = {
   trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
@@ -574,7 +581,9 @@ var ICONS = {
 };
 
 // ---- Estado ----
-var scriptUrl = localStorage.getItem(URL_KEY) || "";
+// Usa la URL hardcodeada si está definida, si no cae al localStorage
+var scriptUrl = URL_FIJA || localStorage.getItem(URL_KEY) || "";
+if(URL_FIJA) localStorage.setItem(URL_KEY, URL_FIJA); // sincroniza por si acaso
 var state = { saldoInicial:0, movimientos:[], saldoExcel:null, saldoSistema:null, efectivoPendiente:0, personas:[] };
 var selectedTipo = "ingreso";
 var filtroTipo = "todos";
@@ -882,7 +891,7 @@ function clearForm(){
   document.getElementById("descripcionInput").value="";
   document.getElementById("montoPreview").textContent="L 0.00";
   document.getElementById("formError").style.display="none";
-  document.getElementById("submitBtn").disabled=false;
+  var sb=document.getElementById("submitBtn"); sb.disabled=false; sb.textContent="Registrar movimiento";
 }
 
 // ================================================================
@@ -1014,22 +1023,26 @@ document.getElementById("movimientoForm").addEventListener("submit",function(e){
     descripcion:descripcion, denominaciones:r.denoms, monto:r.total
   };
 
-  // Optimista: agregar al estado local y cerrar
-  state.movimientos.push(mov);
-  closeModal();
-  renderAll();
-
-  // Sincronizar con Sheets
-  setSyncState("syncing","Guardando...");
+  // Bloquear botón durante el guardado (el modal permanece abierto hasta confirmar)
   var submitBtn=document.getElementById("submitBtn");
   submitBtn.disabled=true;
+  submitBtn.textContent="Registrando...";
+
+  setSyncState("syncing","Guardando...");
   api("addMovimiento",mov)
-    .then(function(){ setSyncState("ok","Movimiento guardado"); })
-    .catch(function(err){
-      // Revertir
-      state.movimientos=state.movimientos.filter(function(m){ return m.id!==mov.id; });
+    .then(function(){
+      // Éxito: agregar al estado, cerrar modal, renderizar
+      state.movimientos.push(mov);
+      closeModal(); // clearForm() restaura el botón aquí
       renderAll();
-      showError("No se pudo guardar el movimiento: "+err.message);
+      setSyncState("ok","Movimiento guardado");
+    })
+    .catch(function(err){
+      // Fallo: restaurar botón y mostrar error en el modal (sin cerrar)
+      submitBtn.disabled=false;
+      submitBtn.textContent="Registrar movimiento";
+      errEl.textContent="Error al guardar: "+err.message+". Verifica tu conexión y reintenta.";
+      errEl.style.display="block";
       setSyncState("err");
     });
 });
