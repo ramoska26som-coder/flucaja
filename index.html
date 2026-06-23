@@ -1,4 +1,4 @@
-f<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -112,7 +112,10 @@ f<!DOCTYPE html>
     font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .ribbon-value.ingreso{color:var(--ingreso);}
   .ribbon-value.egreso{color:var(--egreso);}
-  .ribbon-cell.final .ribbon-value{color:var(--teal-dark);font-size:clamp(16px,2.8vw,23px);}
+  .ribbon-cell.final{background:var(--teal-dark);border-radius:0 calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0;}
+  .ribbon-cell.final .ribbon-label{color:rgba(255,255,255,.65);}
+  .ribbon-cell.final .ribbon-value{color:#fff;font-size:clamp(18px,3vw,26px);}
+  @media(max-width:680px){.ribbon-cell.final{border-radius:0 0 calc(var(--radius)-1px) calc(var(--radius)-1px);}}
   .saldo-inicial-input{font-family:var(--font-mono);font-size:clamp(14px,2.4vw,20px);
     font-weight:600;border:none;background:transparent;color:var(--ink);
     width:100%;padding:0;border-bottom:1px dashed var(--ink-faint);}
@@ -319,6 +322,15 @@ f<!DOCTYPE html>
   .link-secondary{color:var(--teal);}
   .link-secondary:hover{color:var(--teal-dark);}
 
+  .mov-actions{display:flex;gap:8px;margin-top:4px;}
+  .mov-edit{border:none;background:none;color:var(--teal);cursor:pointer;
+    padding:5px;border-radius:6px;display:flex;align-items:center;gap:5px;
+    font-size:12.5px;font-family:var(--font-ui);font-weight:600;}
+  .mov-edit:hover{color:var(--teal-dark);background:var(--teal-bg);}
+  .mov-edit svg{width:14px;height:14px;}
+  .modal-subtitle{font-size:12.5px;color:var(--ink-faint);
+    background:var(--warning-bg);border-radius:7px;padding:6px 10px;margin-bottom:12px;}
+
   ::-webkit-scrollbar{width:8px;}
   ::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px;}
 </style>
@@ -410,25 +422,16 @@ f<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- Efectivo pendiente + Saldo ajustado -->
-  <div class="two-col">
+  <!-- Comparaciones -->
+  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:20px;" class="compare-grid">
     <div class="compare-card">
       <div class="ribbon-label">Efectivo pendiente</div>
       <div class="compare-input-row">
         <span class="prefix">L</span>
         <input type="number" step="0.01" inputmode="decimal" class="compare-input" id="efectivoPendienteInput" placeholder="0.00">
       </div>
-      <p class="hint">Dinero que ya salió de caja pero todavía no se ha registrado como movimiento.</p>
+      <p class="hint">Dinero que salió de caja pero aún no se ha registrado como movimiento.</p>
     </div>
-    <div class="compare-card">
-      <div class="ribbon-label">Saldo ajustado para comparar</div>
-      <div class="calculado-value" id="saldoAjustadoDisplay">L 0.00</div>
-      <p class="hint">Saldo actual + efectivo pendiente. Este valor se compara contra Excel y Sistema.</p>
-    </div>
-  </div>
-
-  <!-- Comparación -->
-  <div class="two-col" style="margin-bottom:20px;">
     <div class="compare-card">
       <div class="ribbon-label">Saldo en Excel</div>
       <div class="compare-input-row">
@@ -436,6 +439,7 @@ f<!DOCTYPE html>
         <input type="number" step="0.01" inputmode="decimal" class="compare-input" id="saldoExcelInput" placeholder="0.00">
       </div>
       <div id="statusExcel"></div>
+      <p class="hint" style="margin-top:6px;">El saldo del <b>flujo</b> debe coincidir con este valor.</p>
     </div>
     <div class="compare-card">
       <div class="ribbon-label">Saldo en Sistema</div>
@@ -444,8 +448,13 @@ f<!DOCTYPE html>
         <input type="number" step="0.01" inputmode="decimal" class="compare-input" id="saldoSistemaInput" placeholder="0.00">
       </div>
       <div id="statusSistema"></div>
+      <p class="hint" style="margin-top:6px;"><b>Efectivo pendiente + Excel</b> debe coincidir con este valor.</p>
     </div>
   </div>
+  <style>
+    @media(max-width:680px){.compare-grid{grid-template-columns:1fr!important;}}
+    @media(max-width:900px) and (min-width:681px){.compare-grid{grid-template-columns:1fr 1fr!important;}}
+  </style>
 
   <!-- Inventario -->
   <div class="inventario-panel">
@@ -493,10 +502,13 @@ f<!DOCTYPE html>
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal-card">
     <div class="modal-header">
-      <h2>Nuevo movimiento</h2>
+      <h2 id="modal-title-text">Nuevo movimiento</h2>
       <button type="button" class="modal-close" id="modalClose">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
+    </div>
+    <div class="modal-subtitle" id="modalSubtitle" style="display:none;">
+      Editando movimiento — los cambios reemplazarán el registro original.
     </div>
     <form id="movimientoForm" novalidate>
       <div class="tipo-toggle">
@@ -568,10 +580,11 @@ var URL_KEY = "flujoCajaScriptUrl";
 // Ej: "https://script.google.com/macros/s/AKfycb.../exec"
 // Si está vacío, la app pedirá la URL la primera vez.
 // ================================================================
-var URL_FIJA = "https://script.google.com/macros/s/AKfycbzi4F0mrRpTmDlM0HO_YRyxmik8eLHOzBaRh6pELltL2DzguFp3Wm5TopZEuP2_S4jAsQ/exec";
+var URL_FIJA = "";
 
 var ICONS = {
   trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
+  edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5Z"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
   alert:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
   inbox:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/></svg>',
@@ -589,6 +602,7 @@ var selectedTipo = "ingreso";
 var filtroTipo = "todos";
 var searchQuery = "";
 var pendingSync = false;
+var editingId = null; // ID del movimiento que se está editando (null = nuevo)
 
 // ================================================================
 // API
@@ -730,9 +744,9 @@ function calcInventario(){
   });
   return c;
 }
-function diffStatus(ajustado, comparado){
-  if(comparado===null||comparado===undefined||isNaN(comparado)) return {status:"pending"};
-  var d=round2(ajustado-comparado);
+function diffStatus(a, b){
+  if(a===null||a===undefined||b===null||b===undefined||isNaN(a)||isNaN(b)) return {status:"pending"};
+  var d=round2(a-b);
   return Math.abs(d)<0.005 ? {status:"match",diff:0} : {status:"mismatch",diff:d};
 }
 
@@ -749,20 +763,33 @@ function renderAll(){
 
 function renderRibbon(){
   var t=calcTotales();
-  var ajustado=round2(t.saldoActual+(state.efectivoPendiente||0));
+  var pend=state.efectivoPendiente||0;
   document.getElementById("totalIngresos").textContent=fmt(t.ingresos);
   document.getElementById("totalEgresos").textContent=fmt(t.egresos);
   document.getElementById("saldoActual").textContent=fmt(t.saldoActual);
-  document.getElementById("saldoAjustadoDisplay").textContent=fmt(ajustado);
-  renderCompare("statusExcel", diffStatus(ajustado,state.saldoExcel), "Excel");
-  renderCompare("statusSistema", diffStatus(ajustado,state.saldoSistema), "Sistema");
+
+  // Comparación 1: Saldo flujo debe coincidir con saldo Excel (teórico)
+  renderCompare("statusExcel",
+    diffStatus(t.saldoActual, state.saldoExcel),
+    "Flujo vs Excel",
+    "El flujo tiene", "Excel"
+  );
+
+  // Comparación 2: Efectivo pendiente + Excel debe coincidir con Sistema
+  var excelParaSistema=(state.saldoExcel!==null)?round2(pend+state.saldoExcel):null;
+  renderCompare("statusSistema",
+    diffStatus(excelParaSistema, state.saldoSistema),
+    "Pendiente+Excel vs Sistema",
+    "Pend+Excel tiene", "Sistema"
+  );
 }
-function renderCompare(id, r, nombre){
+function renderCompare(id, r, _label, prefijo, nombre){
   var el=document.getElementById(id);
-  if(r.status==="pending"){ el.innerHTML='<span class="status-badge pending">Ingresa el saldo de '+nombre+'</span>'; return; }
+  if(r.status==="pending"){ el.innerHTML='<span class="status-badge pending">Ingresa el saldo para comparar</span>'; return; }
   if(r.status==="match"){ el.innerHTML='<span class="status-badge match">'+ICONS.check+' Los saldos cuadran</span>'; return; }
   var d=r.diff;
-  var txt=d>0?"El flujo tiene "+fmt(Math.abs(d))+" más que "+nombre:"El flujo tiene "+fmt(Math.abs(d))+" menos que "+nombre;
+  var txt=(d>0?(prefijo||"Tiene")+" "+fmt(Math.abs(d))+" más que "+nombre
+             :(prefijo||"Tiene")+" "+fmt(Math.abs(d))+" menos que "+nombre);
   el.innerHTML='<span class="status-badge mismatch">'+ICONS.alert+' '+txt+'</span>';
 }
 
@@ -834,7 +861,10 @@ function renderHistorial(){
       '<div class="mov-detail">'+
         entregadoHtml+
         '<div class="mov-detail-grid">'+chips+'</div>'+
+        '<div class="mov-actions">'+
+        '<button type="button" class="mov-edit" data-id="'+m.id+'">'+ICONS.edit+' Editar</button>'+
         '<button type="button" class="mov-delete" data-id="'+m.id+'">'+ICONS.trash+' Eliminar</button>'+
+        '</div>'+
       '</div>'+
       '</details>';
   }).join("");
@@ -989,12 +1019,49 @@ document.querySelectorAll(".tipo-btn").forEach(function(btn){
 // ================================================================
 var modalOverlay=document.getElementById("modalOverlay");
 function openModal(){
+  editingId=null;
+  document.getElementById("modalSubtitle").style.display="none";
+  document.getElementById("modal-title-text").textContent="Nuevo movimiento";
   modalOverlay.classList.add("open");
   document.getElementById("formError").style.display="none";
   setTimeout(function(){ document.getElementById("responsableSelect").focus(); },50);
 }
+function openModalEdit(id){
+  var mov=state.movimientos.find(function(m){ return m.id===id; });
+  if(!mov) return;
+  editingId=id;
+  document.getElementById("modal-title-text").textContent="Editar movimiento";
+  document.getElementById("modalSubtitle").style.display="block";
+
+  // Precargar tipo
+  document.querySelectorAll(".tipo-btn").forEach(function(b){
+    b.classList.toggle("active", b.getAttribute("data-tipo")===mov.tipo);
+  });
+  selectedTipo=mov.tipo;
+  document.getElementById("entregadoAField").style.display=mov.tipo==="egreso"?"block":"none";
+
+  // Precargar campos
+  renderPersonasOptions();
+  document.getElementById("responsableSelect").value=mov.responsable;
+  document.getElementById("entregadoASelect").value=mov.entregadoA||"";
+  document.getElementById("descripcionInput").value=mov.descripcion;
+
+  // Precargar denominaciones
+  DENOMINACIONES.forEach(function(v){
+    var inp=document.getElementById("dn_"+v);
+    var cant=mov.denominaciones[v]||0;
+    inp.value=cant||"";
+    document.getElementById("sb_"+v).textContent=fmt(cant*v);
+  });
+  updateMontoPreview();
+
+  document.getElementById("submitBtn").textContent="Guardar cambios";
+  document.getElementById("formError").style.display="none";
+  modalOverlay.classList.add("open");
+}
 function closeModal(){
   modalOverlay.classList.remove("open");
+  editingId=null;
   clearForm();
 }
 document.getElementById("fabBtn").addEventListener("click",openModal);
@@ -1017,40 +1084,69 @@ document.getElementById("movimientoForm").addEventListener("submit",function(e){
   if(r.total<=0){ errEl.textContent="Ingresa al menos una cantidad de billetes."; errEl.style.display="block"; return; }
   errEl.style.display="none";
 
-  var mov={
-    id:uid(), fecha:new Date().toISOString(), tipo:selectedTipo,
-    responsable:responsable, entregadoA:(selectedTipo==="egreso"&&entregadoA)?entregadoA:"",
-    descripcion:descripcion, denominaciones:r.denoms, monto:r.total
-  };
-
-  // Bloquear botón durante el guardado (el modal permanece abierto hasta confirmar)
   var submitBtn=document.getElementById("submitBtn");
   submitBtn.disabled=true;
-  submitBtn.textContent="Registrando...";
+  submitBtn.textContent="Guardando...";
 
-  setSyncState("syncing","Guardando...");
-  api("addMovimiento",mov)
-    .then(function(){
-      // Éxito: agregar al estado, cerrar modal, renderizar
-      state.movimientos.push(mov);
-      closeModal(); // clearForm() restaura el botón aquí
-      renderAll();
-      setSyncState("ok","Movimiento guardado");
-    })
-    .catch(function(err){
-      // Fallo: restaurar botón y mostrar error en el modal (sin cerrar)
-      submitBtn.disabled=false;
-      submitBtn.textContent="Registrar movimiento";
-      errEl.textContent="Error al guardar: "+err.message+". Verifica tu conexión y reintenta.";
-      errEl.style.display="block";
-      setSyncState("err");
-    });
+  if(editingId){
+    // ---- EDICIÓN ----
+    var movOriginal=state.movimientos.find(function(m){ return m.id===editingId; });
+    var movEditado={
+      id:editingId,
+      fecha:movOriginal?movOriginal.fecha:new Date().toISOString(),
+      tipo:selectedTipo,
+      responsable:responsable,
+      entregadoA:(selectedTipo==="egreso"&&entregadoA)?entregadoA:"",
+      descripcion:descripcion,
+      denominaciones:r.denoms,
+      monto:r.total
+    };
+    setSyncState("syncing","Actualizando...");
+    api("updateMovimiento",movEditado)
+      .then(function(){
+        state.movimientos=state.movimientos.map(function(m){ return m.id===editingId?movEditado:m; });
+        closeModal();
+        renderAll();
+        setSyncState("ok","Movimiento actualizado");
+      })
+      .catch(function(err){
+        submitBtn.disabled=false;
+        submitBtn.textContent="Guardar cambios";
+        errEl.textContent="Error al actualizar: "+err.message;
+        errEl.style.display="block";
+        setSyncState("err");
+      });
+  } else {
+    // ---- NUEVO ----
+    var mov={
+      id:uid(), fecha:new Date().toISOString(), tipo:selectedTipo,
+      responsable:responsable, entregadoA:(selectedTipo==="egreso"&&entregadoA)?entregadoA:"",
+      descripcion:descripcion, denominaciones:r.denoms, monto:r.total
+    };
+    setSyncState("syncing","Guardando...");
+    api("addMovimiento",mov)
+      .then(function(){
+        state.movimientos.push(mov);
+        closeModal();
+        renderAll();
+        setSyncState("ok","Movimiento guardado");
+      })
+      .catch(function(err){
+        submitBtn.disabled=false;
+        submitBtn.textContent="Registrar movimiento";
+        errEl.textContent="Error al guardar: "+err.message+". Verifica tu conexión y reintenta.";
+        errEl.style.display="block";
+        setSyncState("err");
+      });
+  }
 });
 
 // ================================================================
 // Eliminar movimiento
 // ================================================================
 document.getElementById("historialList").addEventListener("click",function(e){
+  var editBtn=e.target.closest(".mov-edit");
+  if(editBtn){ openModalEdit(editBtn.getAttribute("data-id")); return; }
   var btn=e.target.closest(".mov-delete");
   if(!btn) return;
   var id=btn.getAttribute("data-id");

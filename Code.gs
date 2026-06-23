@@ -39,6 +39,7 @@ function ejecutar(action, data) {
     case 'deleteMovimiento': return deleteMovimiento(ss, data.id);
     case 'updateConfig':     return updateConfig(ss, data);
     case 'addPersona':       return addPersona(ss, data.nombre);
+    case 'updateMovimiento':  return updateMovimiento(ss, data);
     default:                 return { ok: false, error: 'Acción desconocida: ' + action };
   }
 }
@@ -193,6 +194,37 @@ function updateConfig(ss, data) {
       sheet.getRange(i + 1, 2).setValue(val === null || val === undefined ? '' : val);
     }
   });
+  return { ok: true };
+}
+
+// ----------------------------------------------------------------
+// updateMovimiento — reemplaza la fila existente en Sheets
+// ----------------------------------------------------------------
+function updateMovimiento(ss, data) {
+  var sheet = ss.getSheetByName('Movimientos');
+  var values = sheet.getDataRange().getValues();
+  var rowIndex = -1;
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === String(data.id)) {
+      rowIndex = i + 1; // 1-based para Sheets
+      break;
+    }
+  }
+  if (rowIndex === -1) return { ok: false, error: 'Movimiento no encontrado: ' + data.id };
+
+  var row = [
+    String(data.id),
+    String(data.fecha),
+    String(data.tipo),
+    String(data.responsable),
+    String(data.entregadoA || ''),
+    String(data.descripcion),
+    Number(data.monto) || 0
+  ];
+  DENOMINACIONES.forEach(function(v) {
+    row.push(Number(data.denominaciones[v]) || 0);
+  });
+  sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
   return { ok: true };
 }
 
