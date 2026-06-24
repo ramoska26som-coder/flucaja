@@ -56,6 +56,7 @@ function ejecutar(action, data) {
     case 'addPersona':       return addPersona(ss, data.nombre);
     case 'updateMovimiento':  return updateMovimiento(ss, data);
     case 'addArqueo':        return addArqueo(ss, data);
+    case 'updateArqueoFirmas': return updateArqueoFirmas(ss, data);
     case 'deleteArqueo':     return deleteArqueo(ss, data.id);
     default:                 return { ok: false, error: 'Acción desconocida: ' + action };
   }
@@ -313,6 +314,25 @@ function addArqueo(ss, data) {
   ];
   sheet.appendRow(row);
   return { ok: true };
+}
+
+// ----------------------------------------------------------------
+// updateArqueoFirmas — actualiza solo las firmas de un arqueo existente
+// ----------------------------------------------------------------
+function updateArqueoFirmas(ss, data) {
+  var sheet = ss.getSheetByName('Arqueos');
+  var values = sheet.getDataRange().getValues();
+  var headers = values[0];
+  var colFR = headers.indexOf('firmaResponsable');
+  var colFV = headers.indexOf('firmaVerificador');
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === String(data.id)) {
+      if (colFR !== -1) sheet.getRange(i + 1, colFR + 1).setValue(String(data.firmaResponsable || ''));
+      if (colFV !== -1) sheet.getRange(i + 1, colFV + 1).setValue(String(data.firmaVerificador || ''));
+      return { ok: true };
+    }
+  }
+  return { ok: false, error: 'Arqueo no encontrado: ' + data.id };
 }
 
 // ----------------------------------------------------------------

@@ -636,6 +636,7 @@
           <button class="btn btn-ghost" id="arqVolverBtn">← Volver</button>
           <div style="display:flex;gap:10px;">
             <button class="btn btn-danger" id="arqEliminarBtn">Eliminar</button>
+            <button class="btn btn-ghost" id="arqFirmarBtn" style="display:none;border-color:var(--blue);color:var(--blue);">Firmar</button>
             <button class="btn btn-blue" id="arqPDFBtn">Descargar PDF</button>
           </div>
         </div>
@@ -741,6 +742,32 @@
   </div>
 </div>
 
+<!-- Modal: firmar arqueo después -->
+<div class="modal-overlay" id="firmarOverlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h2>Firmar arqueo</h2>
+      <button type="button" class="modal-close" id="firmarClose">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-subtitle" id="firmarSubtitle" style="display:block;">Dibuja las firmas faltantes. Se guardan en este equipo y se intentan sincronizar.</div>
+    <div class="firmas" style="flex-direction:column;">
+      <div class="firma-box">
+        <label>RESPONSABLE DE CAJA</label>
+        <canvas id="firmaResponsable2" width="500" height="180"></canvas>
+        <div class="firma-foot"><span>Firma</span><button class="link-btn" data-clear2="firmaResponsable2">Borrar firma</button></div>
+      </div>
+      <div class="firma-box">
+        <label>VERIFICADO POR</label>
+        <canvas id="firmaVerificador2" width="500" height="180"></canvas>
+        <div class="firma-foot"><span>Firma</span><button class="link-btn" data-clear2="firmaVerificador2">Borrar firma</button></div>
+      </div>
+    </div>
+    <button class="btn-primary" id="firmarGuardarBtn" style="margin-top:14px;">Guardar firmas</button>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
@@ -753,7 +780,7 @@ var URL_KEY = "flujoCajaScriptUrl";
 // ================================================================
 // CONFIGURACIÓN — PEGA AQUÍ LA URL DE TU APPS SCRIPT WEB APP
 // ================================================================
-var URL_FIJA = "https://script.google.com/macros/s/AKfycbzi4F0mrRpTmDlM0HO_YRyxmik8eLHOzBaRh6pELltL2DzguFp3Wm5TopZEuP2_S4jAsQ/exec";
+var URL_FIJA = "";
 
 var ICONS = {
   trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
@@ -1478,7 +1505,7 @@ document.getElementById("arqGuardarBtn").addEventListener("click",function(){
   var fecha=document.getElementById("arqFecha").value;
   if(!fecha){ alert("Selecciona la fecha del arqueo."); return; }
   if(!firmasState.firmaResponsable.hasDrawn||!firmasState.firmaVerificador.hasDrawn){
-    if(!confirm("Falta al menos una firma. ¿Guardar el arqueo igual?")) return;
+    if(!confirm("Falta al menos una firma. Puedes guardarlo igual y firmar después.\n¿Guardar el arqueo ahora?")) return;
   }
   var denominaciones=[],totalGeneral=0;
   arqDenomBody.querySelectorAll("tr").forEach(function(tr){
@@ -1487,8 +1514,16 @@ document.getElementById("arqGuardarBtn").addEventListener("click",function(){
     denominaciones.push({valor:valor,cantidad:cantidad,total:total});
   });
   var teorico=parseFloat(document.getElementById("arqTeorico").value)||0;
+
+  // Capturar firmas como imágenes
+  var firmaR=firmasState.firmaResponsable.hasDrawn?document.getElementById("firmaResponsable").toDataURL("image/png"):"";
+  var firmaV=firmasState.firmaVerificador.hasDrawn?document.getElementById("firmaVerificador").toDataURL("image/png"):"";
+
+  var arqId="arq_"+Date.now()+"_"+Math.random().toString(36).slice(2,7);
+
+  // Registro SIN firmas (se guarda por GET, es liviano y confiable)
   var record={
-    id:"arq_"+Date.now()+"_"+Math.random().toString(36).slice(2,7),
+    id:arqId,
     fecha:fecha, hora:document.getElementById("arqHora").value,
     responsable:document.getElementById("arqResponsable").value.trim(),
     verificador:document.getElementById("arqVerificador").value.trim(),
@@ -1497,24 +1532,71 @@ document.getElementById("arqGuardarBtn").addEventListener("click",function(){
     teorico:teorico, sistema:parseFloat(document.getElementById("arqSistema").value)||0,
     diferencia:round2(totalGeneral-teorico),
     notas:document.getElementById("arqNotas").value.trim(),
-    firmaResponsable:document.getElementById("firmaResponsable").toDataURL("image/png"),
-    firmaVerificador:document.getElementById("firmaVerificador").toDataURL("image/png"),
+    firmaResponsable:"", firmaVerificador:"", // se suben aparte
     creadoEn:new Date().toISOString()
   };
+
+  // Guardar las firmas en localStorage (respaldo siempre disponible en este dispositivo)
+  guardarFirmasLocal(arqId, firmaR, firmaV);
+
   var btn=document.getElementById("arqGuardarBtn");
   btn.disabled=true; btn.textContent="Guardando...";
   setSyncState("syncing","Guardando arqueo...");
-  api("addArqueo",record,true).then(function(){
-    state.arqueos.push(record);
+
+  // Paso 1: guardar el arqueo (datos) por GET — rápido y sin problemas de tamaño
+  api("addArqueo",record).then(function(){
+    // El registro en memoria sí lleva las firmas para mostrarlas de inmediato
+    var recordConFirmas=Object.assign({},record,{firmaResponsable:firmaR,firmaVerificador:firmaV});
+    state.arqueos.push(recordConFirmas);
     arqLimpiar();
     btn.disabled=false; btn.textContent="Guardar arqueo";
     setSyncState("ok","Arqueo guardado");
     document.querySelector('.tab[data-atab="historial"]').click();
+
+    // Paso 2: subir las firmas en segundo plano por POST (no bloquea ni alerta si falla)
+    if(firmaR||firmaV){
+      subirFirmasSegundoPlano(arqId, firmaR, firmaV);
+    }
   }).catch(function(err){
     btn.disabled=false; btn.textContent="Guardar arqueo";
     setSyncState("err"); alert("No se pudo guardar el arqueo: "+err.message);
   });
 });
+
+// ---- Firmas: respaldo local + subida en segundo plano ----
+var FIRMAS_KEY="flujoCajaFirmas";
+function cargarFirmasLocal(){
+  try{ var raw=localStorage.getItem(FIRMAS_KEY); return raw?JSON.parse(raw):{}; }
+  catch(e){ return {}; }
+}
+function guardarFirmasLocal(id, firmaR, firmaV){
+  try{
+    var todas=cargarFirmasLocal();
+    todas[id]={r:firmaR||"",v:firmaV||""};
+    localStorage.setItem(FIRMAS_KEY, JSON.stringify(todas));
+  }catch(e){ console.warn("No se pudo guardar firma local:",e); }
+}
+function getFirmaLocal(id){
+  var todas=cargarFirmasLocal();
+  return todas[id]||{r:"",v:""};
+}
+function subirFirmasSegundoPlano(id, firmaR, firmaV){
+  setSyncState("syncing","Subiendo firmas...");
+  api("updateArqueoFirmas",{id:id,firmaResponsable:firmaR,firmaVerificador:firmaV},true)
+    .then(function(){
+      // Marcar en memoria que las firmas ya están en el servidor
+      state.arqueos=state.arqueos.map(function(a){
+        if(a.id===id){ a.firmasEnServidor=true; }
+        return a;
+      });
+      setSyncState("ok","Firmas sincronizadas");
+    })
+    .catch(function(err){
+      // No es crítico: las firmas quedan en local y se siguen viendo en este dispositivo
+      console.warn("Firmas no subidas al servidor (quedan en local):",err.message);
+      setSyncState("ok","Arqueo guardado (firmas solo en este equipo)");
+    });
+}
 
 // Historial de arqueos
 function arqShowLista(){ document.getElementById("arqueoHistLista").style.display="block"; document.getElementById("arqueoHistDetalle").style.display="none"; }
@@ -1558,9 +1640,24 @@ function arqAbrirDetalle(id){
   var r=state.arqueos.find(function(x){ return x.id===id; }); if(!r) return;
   arqCurrentId=id;
   var p=r.fecha.split("-");
+
+  // Resolver firmas: primero la del servidor, si no, el respaldo local de este equipo
+  var local=getFirmaLocal(id);
+  var firmaR=r.firmaResponsable||local.r||"";
+  var firmaV=r.firmaVerificador||local.v||"";
+  var faltanFirmas=(!firmaR||!firmaV);
+
   var filas=r.denominaciones.map(function(d){
     return '<tr><td>'+d.cantidad+'</td><td class="denom-label">L '+d.valor+'</td><td class="mono">'+fmt(d.total)+'</td></tr>';
   }).join("");
+
+  function firmaCelda(img, nombre, rol){
+    if(img){
+      return '<div class="det-firma"><img src="'+img+'" alt="Firma"><p><strong>'+esc(nombre||"—")+'</strong><br>'+rol+'</p></div>';
+    }
+    return '<div class="det-firma"><div style="height:90px;border-bottom:1px solid var(--ink);display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:12px;">Sin firma</div><p><strong>'+esc(nombre||"—")+'</strong><br>'+rol+'</p></div>';
+  }
+
   document.getElementById("arqueoDetalleContenido").innerHTML=
     '<h2>Arqueo Diario de Caja</h2>'+
     '<div class="det-meta"><span><strong>Fecha:</strong> '+p[2]+"/"+p[1]+"/"+p[0]+'</span><span><strong>Hora:</strong> '+(r.hora||"--:--")+'</span></div>'+
@@ -1574,11 +1671,15 @@ function arqAbrirDetalle(id){
     '</div>'+
     (r.notas?'<div class="notas-box">'+esc(r.notas)+'</div>':'')+
     '<div class="det-firmas">'+
-      '<div class="det-firma"><img src="'+r.firmaResponsable+'" alt="Firma responsable"><p><strong>'+esc(r.responsable||"—")+'</strong><br>Responsable de caja</p></div>'+
-      '<div class="det-firma"><img src="'+r.firmaVerificador+'" alt="Firma verificador"><p><strong>'+esc(r.verificador||"—")+'</strong><br>Verificado por</p></div>'+
+      firmaCelda(firmaR, r.responsable, "Responsable de caja")+
+      firmaCelda(firmaV, r.verificador, "Verificado por")+
     '</div>'+
     '<div class="det-footer">Generado el '+new Date(r.creadoEn).toLocaleString("es-HN")+'</div>';
   arqShowDetalle();
+
+  // Mostrar/ocultar botón de firmar según falten firmas
+  var firmarBtn=document.getElementById("arqFirmarBtn");
+  if(firmarBtn) firmarBtn.style.display=faltanFirmas?"inline-flex":"none";
 }
 document.getElementById("arqVolverBtn").addEventListener("click",function(){ arqShowLista(); arqRenderLista(); });
 document.getElementById("arqEliminarBtn").addEventListener("click",function(){
@@ -1613,6 +1714,89 @@ document.getElementById("arqPDFBtn").addEventListener("click",function(){
     console.error(err); alert("No se pudo generar el PDF.");
     btn.disabled=false; btn.textContent="Descargar PDF";
   });
+});
+
+// ================================================================
+// Firmar arqueo después (modal)
+// ================================================================
+var firmarOverlay=document.getElementById("firmarOverlay");
+var firmar2State={};
+function setupFirma2(id){
+  var canvas=document.getElementById(id),ctx=canvas.getContext("2d");
+  ctx.fillStyle="#fff"; ctx.fillRect(0,0,canvas.width,canvas.height);
+  firmar2State[id]={drawing:false,last:{x:0,y:0},hasDrawn:false};
+  function getPos(e){
+    var rect=canvas.getBoundingClientRect();
+    var cx=e.touches?e.touches[0].clientX:e.clientX, cy=e.touches?e.touches[0].clientY:e.clientY;
+    return {x:(cx-rect.left)*(canvas.width/rect.width),y:(cy-rect.top)*(canvas.height/rect.height)};
+  }
+  function start(e){ firmar2State[id].drawing=true; firmar2State[id].last=getPos(e); e.preventDefault(); }
+  function move(e){
+    if(!firmar2State[id].drawing) return;
+    var p=getPos(e);
+    ctx.strokeStyle="#1E3A6B"; ctx.lineWidth=2.5; ctx.lineCap="round"; ctx.lineJoin="round";
+    ctx.beginPath(); ctx.moveTo(firmar2State[id].last.x,firmar2State[id].last.y); ctx.lineTo(p.x,p.y); ctx.stroke();
+    firmar2State[id].last=p; firmar2State[id].hasDrawn=true; e.preventDefault();
+  }
+  function end(){ firmar2State[id].drawing=false; }
+  canvas.addEventListener("mousedown",start); canvas.addEventListener("mousemove",move); window.addEventListener("mouseup",end);
+  canvas.addEventListener("touchstart",start,{passive:false}); canvas.addEventListener("touchmove",move,{passive:false}); canvas.addEventListener("touchend",end);
+}
+function limpiarCanvas2(id){
+  var c=document.getElementById(id),ctx=c.getContext("2d");
+  ctx.fillStyle="#fff"; ctx.fillRect(0,0,c.width,c.height);
+  if(firmar2State[id]) firmar2State[id].hasDrawn=false;
+}
+setupFirma2("firmaResponsable2"); setupFirma2("firmaVerificador2");
+document.querySelectorAll("[data-clear2]").forEach(function(btn){
+  btn.addEventListener("click",function(){ limpiarCanvas2(btn.dataset.clear2); });
+});
+
+document.getElementById("arqFirmarBtn").addEventListener("click",function(){
+  // Precargar las firmas que ya existan (servidor o local) en los canvas
+  var r=state.arqueos.find(function(x){ return x.id===arqCurrentId; }); if(!r) return;
+  var local=getFirmaLocal(arqCurrentId);
+  var firmaR=r.firmaResponsable||local.r||"";
+  var firmaV=r.firmaVerificador||local.v||"";
+  limpiarCanvas2("firmaResponsable2"); limpiarCanvas2("firmaVerificador2");
+  precargarEnCanvas("firmaResponsable2", firmaR);
+  precargarEnCanvas("firmaVerificador2", firmaV);
+  firmarOverlay.classList.add("open");
+});
+function precargarEnCanvas(id, dataUrl){
+  if(!dataUrl) return;
+  var c=document.getElementById(id),ctx=c.getContext("2d");
+  var img=new Image();
+  img.onload=function(){ ctx.drawImage(img,0,0,c.width,c.height); firmar2State[id].hasDrawn=true; };
+  img.src=dataUrl;
+}
+document.getElementById("firmarClose").addEventListener("click",function(){ firmarOverlay.classList.remove("open"); });
+firmarOverlay.addEventListener("click",function(e){ if(e.target===firmarOverlay) firmarOverlay.classList.remove("open"); });
+
+document.getElementById("firmarGuardarBtn").addEventListener("click",function(){
+  var id=arqCurrentId; if(!id) return;
+  var firmaR=firmar2State.firmaResponsable2.hasDrawn?document.getElementById("firmaResponsable2").toDataURL("image/png"):"";
+  var firmaV=firmar2State.firmaVerificador2.hasDrawn?document.getElementById("firmaVerificador2").toDataURL("image/png"):"";
+  if(!firmaR&&!firmaV){ alert("Dibuja al menos una firma."); return; }
+
+  // Guardar local de inmediato
+  var prev=getFirmaLocal(id);
+  guardarFirmasLocal(id, firmaR||prev.r, firmaV||prev.v);
+
+  // Actualizar en memoria
+  state.arqueos=state.arqueos.map(function(a){
+    if(a.id===id){ a.firmaResponsable=firmaR||a.firmaResponsable||prev.r; a.firmaVerificador=firmaV||a.firmaVerificador||prev.v; }
+    return a;
+  });
+
+  firmarOverlay.classList.remove("open");
+  arqAbrirDetalle(id); // refrescar el detalle con las firmas nuevas
+
+  // Subir en segundo plano
+  var btn=document.getElementById("firmarGuardarBtn");
+  btn.disabled=true; btn.textContent="Guardando...";
+  subirFirmasSegundoPlano(id, firmaR||prev.r, firmaV||prev.v);
+  setTimeout(function(){ btn.disabled=false; btn.textContent="Guardar firmas"; },1200);
 });
 
 // ================================================================
