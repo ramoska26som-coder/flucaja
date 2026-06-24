@@ -7,11 +7,26 @@
 var DENOMINACIONES = [500, 200, 100, 50, 20, 10, 5, 2, 1];
 
 // ----------------------------------------------------------------
-// Punto de entrada único (todo por GET con ?payload=JSON)
+// Punto de entrada GET (lecturas y peticiones pequeñas, ?payload=JSON)
 // ----------------------------------------------------------------
 function doGet(e) {
   try {
     var raw = (e && e.parameter && e.parameter.payload) ? e.parameter.payload : '{"action":"getData"}';
+    var payload = JSON.parse(raw);
+    var result = ejecutar(payload.action, payload.data || null);
+    return responder(result);
+  } catch (err) {
+    return responder({ ok: false, error: err.message });
+  }
+}
+
+// ----------------------------------------------------------------
+// Punto de entrada POST (peticiones grandes: arqueos con firmas base64)
+// El cuerpo se envía como texto plano para evitar el preflight CORS.
+// ----------------------------------------------------------------
+function doPost(e) {
+  try {
+    var raw = (e && e.postData && e.postData.contents) ? e.postData.contents : '{"action":"getData"}';
     var payload = JSON.parse(raw);
     var result = ejecutar(payload.action, payload.data || null);
     return responder(result);
