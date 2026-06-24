@@ -104,6 +104,10 @@ function inicializarHojas(ss) {
              'denominaciones','firmaResponsable','firmaVerificador','creadoEn'];
     arq.getRange(1, 1, 1, h.length).setValues([h]);
     arq.setFrozenRows(1);
+    // Forzar texto plano en columnas que Sheets intentaría convertir a fecha/hora
+    // B=fecha, C=hora, O=creadoEn  (evita corrupción al leer desde otro dispositivo)
+    arq.getRange('B2:C').setNumberFormat('@');
+    arq.getRange('O2:O').setNumberFormat('@');
   }
 }
 
@@ -172,8 +176,8 @@ function getData(ss) {
       try { denoms = JSON.parse(aobj.denominaciones || '[]'); } catch(e) { denoms = []; }
       arqueos.push({
         id:                String(aobj.id),
-        fecha:             String(aobj.fecha),
-        hora:              String(aobj.hora || ''),
+        fecha:             normalizarFecha(aobj.fecha),
+        hora:              normalizarHora(aobj.hora),
         responsable:       String(aobj.responsable || ''),
         verificador:       String(aobj.verificador || ''),
         totalContado:      Number(aobj.totalContado) || 0,
@@ -312,6 +316,10 @@ function addArqueo(ss, data) {
     String(data.firmaVerificador || ''),
     String(data.creadoEn || new Date().toISOString())
   ];
+  // Asegurar texto plano en fecha/hora/creadoEn antes de escribir
+  var newRow = sheet.getLastRow() + 1;
+  sheet.getRange(newRow, 2, 1, 2).setNumberFormat('@'); // B,C = fecha,hora
+  sheet.getRange(newRow, 15, 1, 1).setNumberFormat('@'); // O = creadoEn
   sheet.appendRow(row);
   return { ok: true };
 }
@@ -366,4 +374,48 @@ function addPersona(ss, nombre) {
     sheet.appendRow([limpio]);
   }
   return { ok: true };
+}
+
+// ----------------------------------------------------------------
+// Normalización de fecha/hora — repara valores que Sheets convirtió
+// a objetos Date. Devuelve siempre texto en formato esperado por el
+// frontend: fecha "YYYY-MM-DD", hora "HH:MM".
+// ----------------------------------------------------------------
+function pad2(n){ return ('0' + n).slice(-2); }
+
+function normalizarFecha(val) {
+  if (val === null || val === undefined || val === '') return '';
+  // Si ya es texto YYYY-MM-DD, devolver tal cual
+  if (typeof val === 'string') {
+    var m = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[1] + '-' + m[2] + '-' + m[3];
+    // Otro texto: intentar parsear como fecha
+    var d2 = new Date(val);
+    if (!isNaN(d2.getTime()) && d2.getFullYear() > 1900) {
+      return d2.getFullYear() + '-' + pad2(d2.getMonth() + 1) + '-' + pad2(d2.getDate());
+    }
+    return String(val);
+  }
+  // Si es un objeto Date (lo que causaba el bug)
+  if (Object.prototype.toString.call(val) === '[object Date]') {
+    if (val.getFullYear() > 1900) {
+      return val.getFullYear() + '-' + pad2(val.getMonth() + 1) + '-' + pad2(val.getDate());
+    }
+    return '';
+  }
+  return String(val);
+}
+
+function normalizarHora(val) {
+  if (val === null || val === undefined || val === '') return '';
+  if (typeof val === 'string') {
+    var m = val.match(/(\d{1,2}):(\d{2})/);
+    if (m) return pad2(parseInt(m[1], 10)) + ':' + m[2];
+    return String(val);
+  }
+  // Si es un objeto Date (hora con fecha base 1899)
+  if (Object.prototype.toString.call(val) === '[object Date]') {
+    return pad2(val.getHours()) + ':' + pad2(val.getMinutes());
+  }
+  return String(val);
 }
