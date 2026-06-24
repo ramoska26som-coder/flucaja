@@ -82,10 +82,16 @@ La URL del servidor se guarda en el navegador — solo tendrás que configurarla
 
 ## Uso diario
 
-- **Agregar movimiento:** botón **+** abajo a la derecha.
-- **Recargar datos:** botón **↻ Recargar** en la barra superior o en el pie de página (útil si otro usuario registró movimientos desde otra PC o celular).
-- **Comparar saldos:** los campos de Excel y Sistema se comparan contra el Saldo ajustado (saldo del flujo + efectivo pendiente).
-- **Ver inventario de billetes:** panel debajo de la comparación, muestra cuántos billetes hay por denominación según los movimientos registrados.
+- **Pestañas Flujo / Arqueo:** la app tiene dos secciones. *Flujo de Caja* para registrar movimientos de ingresos/egresos; *Arqueo* para el conteo diario con firmas y PDF.
+- **Agregar movimiento:** botón **+** abajo a la derecha (solo en la pestaña Flujo).
+- **Configuración (engranaje):** el saldo inicial de caja se ajusta aquí.
+- **Fecha y hora en vivo:** se muestra en la barra superior.
+- **Movimientos agrupados por fecha:** cada día se puede contraer/expandir; al estar contraído muestra ingresos, egresos y saldo a esa fecha.
+- **Recargar datos:** botón ↻ en la barra superior (para ver cambios de otros dispositivos).
+- **Comparaciones:** el saldo del flujo se compara con Excel; *Efectivo pendiente + Excel* se compara con Sistema.
+- **Arqueo:** conteo de billetes, firmas en pantalla, cálculo de diferencia y exportación a PDF. Se guarda en Google Sheets.
+
+> El backend crea automáticamente las hojas **Movimientos**, **Personas**, **Config** y **Arqueos** la primera vez.
 
 ---
 

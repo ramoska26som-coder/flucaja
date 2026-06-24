@@ -40,6 +40,8 @@ function ejecutar(action, data) {
     case 'updateConfig':     return updateConfig(ss, data);
     case 'addPersona':       return addPersona(ss, data.nombre);
     case 'updateMovimiento':  return updateMovimiento(ss, data);
+    case 'addArqueo':        return addArqueo(ss, data);
+    case 'deleteArqueo':     return deleteArqueo(ss, data.id);
     default:                 return { ok: false, error: 'Acción desconocida: ' + action };
   }
 }
@@ -76,6 +78,16 @@ function inicializarHojas(ss) {
     var per = ss.insertSheet('Personas');
     per.getRange('A1').setValue('nombre');
     per.setFrozenRows(1);
+  }
+
+  // Hoja Arqueos
+  if (!ss.getSheetByName('Arqueos')) {
+    var arq = ss.insertSheet('Arqueos');
+    var h = ['id','fecha','hora','responsable','verificador','totalContado',
+             'efectivoPendiente','teorico','sistema','diferencia','notas',
+             'denominaciones','firmaResponsable','firmaVerificador','creadoEn'];
+    arq.getRange(1, 1, 1, h.length).setValues([h]);
+    arq.setFrozenRows(1);
   }
 }
 
@@ -129,6 +141,39 @@ function getData(ss) {
     if (nombre) personas.push(nombre);
   }
 
+  // Arqueos
+  var arqSheet = ss.getSheetByName('Arqueos');
+  var arqValues = arqSheet.getDataRange().getValues();
+  var arqueos = [];
+  if (arqValues.length > 1) {
+    var aHeaders = arqValues[0];
+    for (var k = 1; k < arqValues.length; k++) {
+      var arow = arqValues[k];
+      if (!arow[0]) continue;
+      var aobj = {};
+      aHeaders.forEach(function(h, idx){ aobj[h] = arow[idx]; });
+      var denoms;
+      try { denoms = JSON.parse(aobj.denominaciones || '[]'); } catch(e) { denoms = []; }
+      arqueos.push({
+        id:                String(aobj.id),
+        fecha:             String(aobj.fecha),
+        hora:              String(aobj.hora || ''),
+        responsable:       String(aobj.responsable || ''),
+        verificador:       String(aobj.verificador || ''),
+        totalContado:      Number(aobj.totalContado) || 0,
+        efectivoPendiente: Number(aobj.efectivoPendiente) || 0,
+        teorico:           Number(aobj.teorico) || 0,
+        sistema:           Number(aobj.sistema) || 0,
+        diferencia:        Number(aobj.diferencia) || 0,
+        notas:             String(aobj.notas || ''),
+        denominaciones:    denoms,
+        firmaResponsable:  String(aobj.firmaResponsable || ''),
+        firmaVerificador:  String(aobj.firmaVerificador || ''),
+        creadoEn:          String(aobj.creadoEn || '')
+      });
+    }
+  }
+
   return {
     ok: true,
     config: {
@@ -138,7 +183,8 @@ function getData(ss) {
       saldoSistema:      (config.saldoSistema === '' || config.saldoSistema === null) ? null : Number(config.saldoSistema)
     },
     movimientos: movimientos,
-    personas:    personas
+    personas:    personas,
+    arqueos:     arqueos
   };
 }
 
@@ -226,6 +272,47 @@ function updateMovimiento(ss, data) {
   });
   sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
   return { ok: true };
+}
+
+// ----------------------------------------------------------------
+// addArqueo
+// ----------------------------------------------------------------
+function addArqueo(ss, data) {
+  var sheet = ss.getSheetByName('Arqueos');
+  var row = [
+    String(data.id),
+    String(data.fecha),
+    String(data.hora || ''),
+    String(data.responsable || ''),
+    String(data.verificador || ''),
+    Number(data.totalContado) || 0,
+    Number(data.efectivoPendiente) || 0,
+    Number(data.teorico) || 0,
+    Number(data.sistema) || 0,
+    Number(data.diferencia) || 0,
+    String(data.notas || ''),
+    JSON.stringify(data.denominaciones || []),
+    String(data.firmaResponsable || ''),
+    String(data.firmaVerificador || ''),
+    String(data.creadoEn || new Date().toISOString())
+  ];
+  sheet.appendRow(row);
+  return { ok: true };
+}
+
+// ----------------------------------------------------------------
+// deleteArqueo
+// ----------------------------------------------------------------
+function deleteArqueo(ss, id) {
+  var sheet = ss.getSheetByName('Arqueos');
+  var values = sheet.getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === String(id)) {
+      sheet.deleteRow(i + 1);
+      return { ok: true };
+    }
+  }
+  return { ok: false, error: 'Arqueo no encontrado: ' + id };
 }
 
 // ----------------------------------------------------------------
