@@ -898,7 +898,7 @@ var URL_KEY = "flujoCajaScriptUrl";
 // ================================================================
 // CONFIGURACIÓN — PEGA AQUÍ LA URL DE TU APPS SCRIPT WEB APP
 // ================================================================
-var URL_FIJA = "https://script.google.com/macros/s/AKfycbzi4F0mrRpTmDlM0HO_YRyxmik8eLHOzBaRh6pELltL2DzguFp3Wm5TopZEuP2_S4jAsQ/exec";
+var URL_FIJA = "";
 
 var ICONS = {
   trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
@@ -925,24 +925,44 @@ var editingId = null;
 // ================================================================
 // API
 //  - GET por defecto (rápido, evita preflight CORS)
-//  - POST cuando el payload es grande (ej. arqueos con firmas base64),
-//    usando text/plain para seguir evitando el preflight CORS.
+//  - POST cuando el payload es grande (arqueos/movimientos con firmas).
+//    Se envía el body como texto SIN header Content-Type personalizado,
+//    porque Apps Script no responde al preflight OPTIONS de CORS.
+//    Un fetch POST sin headers personalizados es una "petición simple"
+//    y el navegador no hace preflight.
 // ================================================================
 function api(action, data, usePost){
   var body = JSON.stringify({ action:action, data:data||null });
   var req;
   if(usePost){
-    req = fetch(scriptUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: body
-    });
+    // NO agregar headers: dejar que sea una "simple request" (evita preflight OPTIONS)
+    req = fetch(scriptUrl, { method:"POST", body:body });
   } else {
     req = fetch(scriptUrl + "?payload=" + encodeURIComponent(body));
   }
   return req
     .then(function(r){ return r.json(); })
     .then(function(json){ if(!json.ok) throw new Error(json.error||"Error en el servidor"); return json; });
+}
+
+// Guarda un movimiento con estrategia robusta:
+// 1) intenta POST (soporta firmas grandes)
+// 2) si el POST falla (CORS u otro), reintenta por GET SIN las firmas,
+//    para que el movimiento siempre quede guardado. Las firmas permanecen
+//    en el respaldo local del dispositivo.
+function apiGuardarMovimiento(accion, mov){
+  var llevaFirmas = !!(mov.firmaEntrega || mov.firmaRecibe);
+  if(!llevaFirmas){
+    return api(accion, mov, false); // sin firmas: GET directo
+  }
+  return api(accion, mov, true).catch(function(errPost){
+    // Fallback: guardar sin firmas por GET
+    var movSinFirmas = Object.assign({}, mov, { firmaEntrega:"", firmaRecibe:"" });
+    return api(accion, movSinFirmas, false).then(function(res){
+      res._firmasSoloLocal = true; // señal para avisar al usuario
+      return res;
+    });
+  });
 }
 
 // ================================================================
@@ -1633,9 +1653,10 @@ document.getElementById("movimientoForm").addEventListener("submit",function(e){
       firmaEntrega:fE, firmaRecibe:fR, esPendiente:esPendiente, origenPendiente:origenPend };
     guardarFirmaMovLocal(editingId, fE, fR);
     setSyncState("syncing","Actualizando...");
-    api("updateMovimiento",movEd,!!(fE||fR)).then(function(){
+    apiGuardarMovimiento("updateMovimiento",movEd).then(function(res){
       state.movimientos=state.movimientos.map(function(m){ return m.id===editingId?movEd:m; });
-      closeModal(); renderAll(); setSyncState("ok","Movimiento actualizado");
+      closeModal(); renderAll();
+      setSyncState("ok", res._firmasSoloLocal?"Guardado (firmas solo en este equipo)":"Movimiento actualizado");
     }).catch(function(err){
       submitBtn.disabled=false; submitBtn.textContent="Guardar cambios";
       errEl.textContent="Error al actualizar: "+err.message; errEl.style.display="block"; setSyncState("err");
@@ -1648,8 +1669,9 @@ document.getElementById("movimientoForm").addEventListener("submit",function(e){
       firmaEntrega:firmaE, firmaRecibe:firmaR2, esPendiente:esPendiente, origenPendiente:origenPend };
     if(llevaFirmas) guardarFirmaMovLocal(nid, firmaE, firmaR2);
     setSyncState("syncing","Guardando...");
-    api("addMovimiento",mov,llevaFirmas).then(function(){
-      state.movimientos.push(mov); closeModal(); renderAll(); setSyncState("ok","Movimiento guardado");
+    apiGuardarMovimiento("addMovimiento",mov).then(function(res){
+      state.movimientos.push(mov); closeModal(); renderAll();
+      setSyncState("ok", res._firmasSoloLocal?"Guardado (firmas solo en este equipo)":"Movimiento guardado");
     }).catch(function(err){
       submitBtn.disabled=false; submitBtn.textContent="Registrar movimiento";
       errEl.textContent="Error al guardar: "+err.message+". Verifica tu conexión y reintenta."; errEl.style.display="block"; setSyncState("err");
