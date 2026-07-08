@@ -82,11 +82,14 @@ function inicializarHojas(ss) {
   if (!ss.getSheetByName('Movimientos')) {
     var mov = ss.insertSheet('Movimientos');
     var headers = ['id','fecha','tipo','responsable','entregadoA','descripcion','monto',
-                   'd500','d200','d100','d50','d20','d10','d5','d2','d1'];
+                   'd500','d200','d100','d50','d20','d10','d5','d2','d1',
+                   'firmaEntrega','firmaRecibe','esPendiente','origenPendiente'];
     mov.getRange(1, 1, 1, headers.length).setValues([headers]);
     mov.setFrozenRows(1);
     // Formato moneda en columna monto (G)
     mov.getRange('G2:G').setNumberFormat('#,##0.00');
+    // Forzar texto plano en columna fecha (B) para que Sheets no la reinterprete
+    mov.getRange('B2:B').setNumberFormat('@');
   }
 
   // Hoja Personas
@@ -147,7 +150,11 @@ function getData(ss) {
         entregadoA:   String(obj.entregadoA || ''),
         descripcion:  String(obj.descripcion),
         monto:        Number(obj.monto) || 0,
-        denominaciones: denoms
+        denominaciones: denoms,
+        firmaEntrega: String(obj.firmaEntrega || ''),
+        firmaRecibe:  String(obj.firmaRecibe || ''),
+        esPendiente:  String(obj.esPendiente || '') === 'true' || obj.esPendiente === true,
+        origenPendiente: String(obj.origenPendiente || '')
       });
     }
   }
@@ -225,6 +232,13 @@ function addMovimiento(ss, data) {
   DENOMINACIONES.forEach(function(v) {
     row.push(Number(data.denominaciones[v]) || 0);
   });
+  // Guardar firmas de entrega/recibo si vienen (columnas extra R,S)
+  row.push(String(data.firmaEntrega || ''));
+  row.push(String(data.firmaRecibe || ''));
+  row.push(data.esPendiente ? 'true' : 'false');
+  row.push(String(data.origenPendiente || ''));
+  var newRow = sheet.getLastRow() + 1;
+  sheet.getRange(newRow, 2, 1, 1).setNumberFormat('@'); // B = fecha como texto
   sheet.appendRow(row);
   return { ok: true };
 }
@@ -290,6 +304,11 @@ function updateMovimiento(ss, data) {
   DENOMINACIONES.forEach(function(v) {
     row.push(Number(data.denominaciones[v]) || 0);
   });
+  row.push(String(data.firmaEntrega || ''));
+  row.push(String(data.firmaRecibe || ''));
+  row.push(data.esPendiente ? 'true' : 'false');
+  row.push(String(data.origenPendiente || ''));
+  sheet.getRange(rowIndex, 2, 1, 1).setNumberFormat('@'); // fecha como texto
   sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
   return { ok: true };
 }

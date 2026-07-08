@@ -145,6 +145,9 @@
   .compare-input{font-family:var(--font-mono);font-size:15px;font-weight:600;border:1px solid var(--border);
     border-radius:7px;padding:7px 8px;width:100%;background:var(--surface-2);color:var(--ink);}
   .compare-input:focus{outline:none;border-color:var(--blue);background:var(--surface);}
+  .pend-display{font-family:var(--font-mono);font-size:18px;font-weight:700;color:var(--warn);padding:4px 0;}
+  .pend-badge{display:inline-block;margin-left:8px;font-size:10.5px;font-weight:700;
+    background:var(--warn-bg);color:var(--warn);padding:2px 7px;border-radius:999px;vertical-align:middle;}
   .hint{font-size:11px;color:var(--ink-faint);margin:6px 0 0;line-height:1.35;}
   .status-badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;
     padding:4px 9px;border-radius:999px;margin-top:8px;}
@@ -285,6 +288,12 @@
 
   /* ---- Formulario ---- */
   .tipo-toggle{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;}
+  .tipo-toggle-3{grid-template-columns:1fr 1fr 1fr;}
+  .tipo-btn[data-tipo="pendiente"].active{background:var(--warn-bg);border-color:var(--warn);color:var(--warn);}
+  .origen-toggle{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .origen-btn{border:1.5px solid var(--border);background:var(--surface-2);border-radius:8px;padding:9px;
+    font-family:var(--font-ui);font-weight:600;font-size:13.5px;color:var(--ink-soft);cursor:pointer;}
+  .origen-btn.active{background:var(--blue-bg);border-color:var(--blue);color:var(--blue-dark);}
   .tipo-btn{border:1.5px solid var(--border);background:var(--surface-2);border-radius:9px;padding:10px;
     font-family:var(--font-ui);font-weight:600;font-size:14px;color:var(--ink-soft);cursor:pointer;
     display:flex;align-items:center;justify-content:center;gap:6px;transition:background .12s,border-color .12s,color .12s;}
@@ -527,11 +536,8 @@
     <div class="compare-grid">
       <div class="compare-card">
         <div class="clabel">Efectivo pendiente</div>
-        <div class="compare-input-row">
-          <span class="prefix">L</span>
-          <input type="number" step="0.01" inputmode="decimal" class="compare-input" id="efectivoPendienteInput" placeholder="0.00">
-        </div>
-        <p class="hint">Salió de caja pero aún no registrado.</p>
+        <div class="pend-display" id="efectivoPendienteDisplay">L 0.00</div>
+        <p class="hint">Suma de los movimientos marcados como pendientes. Usa el botón <b>+</b> → Efectivo pendiente para registrarlos.</p>
       </div>
       <div class="compare-card">
         <div class="clabel">Saldo en Excel</div>
@@ -539,6 +545,7 @@
           <span class="prefix">L</span>
           <input type="number" step="0.01" inputmode="decimal" class="compare-input" id="saldoExcelInput" placeholder="0.00">
         </div>
+        <p class="hint" id="baseComparacionExcel">Comparado con Flujo+Pend.: L 0.00</p>
       </div>
       <div class="compare-card">
         <div class="clabel">Saldo en Sistema</div>
@@ -546,6 +553,7 @@
           <span class="prefix">L</span>
           <input type="number" step="0.01" inputmode="decimal" class="compare-input" id="saldoSistemaInput" placeholder="0.00">
         </div>
+        <p class="hint" id="baseComparacionSistema">Comparado con Flujo+Pend.: L 0.00</p>
       </div>
     </div>
 
@@ -714,7 +722,7 @@
     </div>
     <div class="modal-subtitle" id="modalSubtitle" style="display:none;">Editando movimiento — los cambios reemplazarán el registro original.</div>
     <form id="movimientoForm" novalidate>
-      <div class="tipo-toggle">
+      <div class="tipo-toggle tipo-toggle-3">
         <button type="button" class="tipo-btn active" data-tipo="ingreso">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m16 12-4-4-4 4"/><line x1="12" y1="16" x2="12" y2="8"/></svg>
           Ingreso
@@ -723,6 +731,20 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m8 12 4 4 4-4"/><line x1="12" y1="8" x2="12" y2="16"/></svg>
           Egreso
         </button>
+        <button type="button" class="tipo-btn" data-tipo="pendiente">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          Pendiente
+        </button>
+      </div>
+
+      <!-- Selector de origen (solo modo pendiente) -->
+      <div class="field" id="origenPendienteField" style="display:none;">
+        <label>Origen del efectivo pendiente</label>
+        <div class="origen-toggle">
+          <button type="button" class="origen-btn active" data-origen="caja">De Caja</button>
+          <button type="button" class="origen-btn" data-origen="banco">De Banco</button>
+        </div>
+        <p class="hint" id="origenHint">De caja: se registra como egreso con billetes y descuenta del inventario.</p>
       </div>
       <div class="field">
         <label for="responsableSelect">Responsable</label>
@@ -754,11 +776,19 @@
         <label for="descripcionInput">Descripción</label>
         <textarea id="descripcionInput" placeholder="Motivo del movimiento"></textarea>
       </div>
-      <div class="field">
+      <div class="field" id="denomField">
         <label>Cantidad por denominación</label>
         <div class="denom-grid" id="denomGrid"></div>
       </div>
-      <div class="monto-preview">
+      <div class="field" id="montoDirectoField" style="display:none;">
+        <label for="montoDirectoInput">Monto (de banco)</label>
+        <div class="compare-input-row">
+          <span class="prefix">L</span>
+          <input type="number" step="0.01" inputmode="decimal" class="compare-input" id="montoDirectoInput" placeholder="0.00">
+        </div>
+        <p class="hint">Este monto no afecta el saldo del flujo de caja ni los billetes; solo suma al efectivo pendiente.</p>
+      </div>
+      <div class="monto-preview" id="montoPreviewWrap">
         <span class="label">Monto del movimiento</span>
         <span class="value" id="montoPreview">L 0.00</span>
       </div>
@@ -864,7 +894,7 @@ var URL_KEY = "flujoCajaScriptUrl";
 // ================================================================
 // CONFIGURACIÓN — PEGA AQUÍ LA URL DE TU APPS SCRIPT WEB APP
 // ================================================================
-var URL_FIJA = "https://script.google.com/macros/s/AKfycbzi4F0mrRpTmDlM0HO_YRyxmik8eLHOzBaRh6pELltL2DzguFp3Wm5TopZEuP2_S4jAsQ/exec";
+var URL_FIJA = "";
 
 var ICONS = {
   trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
@@ -974,7 +1004,6 @@ function loadData(silent){
 }
 function syncInputsFromState(){
   document.getElementById("saldoInicialInput").value = state.saldoInicial||"";
-  document.getElementById("efectivoPendienteInput").value = state.efectivoPendiente||"";
   document.getElementById("saldoExcelInput").value = state.saldoExcel!==null?state.saldoExcel:"";
   document.getElementById("saldoSistemaInput").value = state.saldoSistema!==null?state.saldoSistema:"";
 }
@@ -1080,13 +1109,27 @@ function esc(s){ var d=document.createElement("div"); d.textContent=s; return d.
 // ================================================================
 function calcTotales(){
   var ing=0,eg=0;
-  state.movimientos.forEach(function(m){ m.tipo==="ingreso"?ing+=m.monto:eg+=m.monto; });
+  state.movimientos.forEach(function(m){
+    if(m.tipo==="pendiente_banco") return; // banco no afecta el flujo de caja
+    m.tipo==="ingreso"?ing+=m.monto:eg+=m.monto;
+  });
   ing=round2(ing); eg=round2(eg);
   return { ingresos:ing, egresos:eg, saldoActual:round2(state.saldoInicial+ing-eg) };
+}
+// Total de efectivo pendiente = suma de todos los movimientos marcados como pendientes
+// (los de caja son egresos con esPendiente=true; los de banco son tipo pendiente_banco)
+function calcEfectivoPendiente(){
+  var total=0;
+  state.movimientos.forEach(function(m){
+    if(m.tipo==="pendiente_banco"){ total+=m.monto; }
+    else if(m.esPendiente){ total+=m.monto; }
+  });
+  return round2(total);
 }
 function calcHoy(){
   var hoy=todayKey(), ing=0,eg=0,ni=0,ne=0;
   state.movimientos.forEach(function(m){
+    if(m.tipo==="pendiente_banco") return; // no cuenta en ingresos/egresos de caja
     if(fechaKey(m.fecha)!==hoy) return;
     if(m.tipo==="ingreso"){ ing+=m.monto; ni++; } else { eg+=m.monto; ne++; }
   });
@@ -1095,12 +1138,16 @@ function calcHoy(){
 function calcSaldosPorMov(){
   var asc=state.movimientos.slice().sort(function(a,b){ return new Date(a.fecha)-new Date(b.fecha); });
   var acc=state.saldoInicial,mapa={};
-  asc.forEach(function(m){ acc=round2(acc+(m.tipo==="ingreso"?m.monto:-m.monto)); mapa[m.id]=acc; });
+  asc.forEach(function(m){
+    if(m.tipo==="pendiente_banco"){ mapa[m.id]=acc; return; } // no mueve el saldo
+    acc=round2(acc+(m.tipo==="ingreso"?m.monto:-m.monto)); mapa[m.id]=acc;
+  });
   return mapa;
 }
 function calcInventario(){
   var c={}; DENOMINACIONES.forEach(function(v){ c[v]=0; });
   state.movimientos.forEach(function(m){
+    if(m.tipo==="pendiente_banco") return; // banco no tiene billetes de caja
     var f=m.tipo==="ingreso"?1:-1;
     DENOMINACIONES.forEach(function(v){ c[v]+=f*(m.denominaciones[v]||0); });
   });
@@ -1123,16 +1170,31 @@ function renderAll(){
 }
 
 function renderStats(){
-  var t=calcTotales(), h=calcHoy(), pend=state.efectivoPendiente||0;
+  var t=calcTotales(), h=calcHoy();
+  var pend=calcEfectivoPendiente();
+  var flujoMasPend=round2(t.saldoActual+pend);
+
   document.getElementById("saldoActual").textContent=fmt(t.saldoActual);
   document.getElementById("ingresosHoy").textContent=fmt(h.ingresos);
   document.getElementById("egresosHoy").textContent=fmt(h.egresos);
   document.getElementById("ingresosHoyCount").textContent=h.nIng+(h.nIng===1?" movimiento":" movimientos");
   document.getElementById("egresosHoyCount").textContent=h.nEg+(h.nEg===1?" movimiento":" movimientos");
 
-  // Tres comparaciones explícitas
-  renderComp("compFlujoExcel", "Flujo vs Excel", diffStatus(t.saldoActual, state.saldoExcel), "El flujo","Excel");
-  renderComp("compFlujoSistema", "Flujo vs Sistema", diffStatus(t.saldoActual, state.saldoSistema), "El flujo","Sistema");
+  // Tarjeta de efectivo pendiente: ahora es la suma de registros (solo lectura)
+  var pendEl=document.getElementById("efectivoPendienteDisplay");
+  if(pendEl) pendEl.textContent=fmt(pend);
+
+  // Mostrar en cada tarjeta el valor "flujo+pendiente" con el que se compara
+  var baseEl=document.getElementById("baseComparacion");
+  if(baseEl) baseEl.textContent=fmt(flujoMasPend);
+  var baseExcel=document.getElementById("baseComparacionExcel");
+  if(baseExcel) baseExcel.textContent="Comparado con Flujo+Pend.: "+fmt(flujoMasPend);
+  var baseSist=document.getElementById("baseComparacionSistema");
+  if(baseSist) baseSist.textContent="Comparado con Flujo+Pend.: "+fmt(flujoMasPend);
+
+  // Comparaciones: Excel y Sistema contra flujo+pendiente
+  renderComp("compFlujoExcel", "Flujo+Pend. vs Excel", diffStatus(flujoMasPend, state.saldoExcel), "Flujo+Pend.","Excel");
+  renderComp("compFlujoSistema", "Flujo+Pend. vs Sistema", diffStatus(flujoMasPend, state.saldoSistema), "Flujo+Pend.","Sistema");
   renderComp("compExcelSistema", "Excel vs Sistema", diffStatus(state.saldoExcel, state.saldoSistema), "Excel","Sistema");
 }
 function renderComp(id, etiqueta, r, sujeto, nombre){
@@ -1211,18 +1273,26 @@ function renderHistorialGroups(){
     var saldoFin=saldoMap[ultimoMov.id];
 
     var movsHtml=lista.map(function(m){
-      var signo=m.tipo==="ingreso"?"+":"-";
-      var icono=m.tipo==="ingreso"?ICONS.ing:ICONS.eg;
+      var esBanco=m.tipo==="pendiente_banco";
+      var esIngreso=m.tipo==="ingreso";
+      var signo=esIngreso?"+":"-";
+      var icono=esIngreso?ICONS.ing:ICONS.eg;
+      var claseTipo=esIngreso?"ingreso":"egreso";
       var saldoRes=saldoMap[m.id];
-      return '<div class="mov-item '+m.tipo+' mov-clickable" data-detalle="'+m.id+'">'+
+      var badgePend = (esBanco||m.esPendiente)
+        ? '<span class="pend-badge">Pendiente'+(esBanco?" · banco":" · caja")+'</span>' : '';
+      var saldoLinea = esBanco
+        ? '<div class="mov-saldo">No afecta flujo</div>'
+        : '<div class="mov-saldo">Saldo: '+(saldoRes!==undefined?fmt(saldoRes):"—")+'</div>';
+      return '<div class="mov-item '+claseTipo+' mov-clickable" data-detalle="'+m.id+'">'+
         '<div class="mov-icon">'+icono+'</div>'+
         '<div class="mov-main">'+
-          '<div class="mov-desc">'+esc(m.descripcion)+'</div>'+
+          '<div class="mov-desc">'+esc(m.descripcion)+badgePend+'</div>'+
           '<div class="mov-meta">'+esc(m.responsable)+' · '+fmtHora(m.fecha)+'</div>'+
         '</div>'+
         '<div class="mov-right">'+
           '<div class="mov-amount">'+signo+fmt(m.monto)+'</div>'+
-          '<div class="mov-saldo">Saldo: '+(saldoRes!==undefined?fmt(saldoRes):"—")+'</div>'+
+          saldoLinea+
         '</div>'+
         '<div class="mov-chevron">'+ICONS.chevronR+'</div>'+
       '</div>';
@@ -1304,6 +1374,7 @@ function clearForm(){
   DENOMINACIONES.forEach(function(v){ document.getElementById("dn_"+v).value=""; document.getElementById("sb_"+v).textContent="L 0.00"; });
   document.getElementById("descripcionInput").value="";
   document.getElementById("montoPreview").textContent="L 0.00";
+  var md=document.getElementById("montoDirectoInput"); if(md) md.value="";
   document.getElementById("formError").style.display="none";
   if(typeof limpiarFirmasMovCanvas==="function") limpiarFirmasMovCanvas();
   var tog=document.querySelector(".firmas-mov-toggle"); if(tog) tog.open=false;
@@ -1357,19 +1428,50 @@ function onConfigChange(field,rawValue,nullIfEmpty){
   api("updateConfig",patch).then(function(){ setSyncState("ok"); }).catch(function(err){ setSyncState("err",err.message); });
 }
 document.getElementById("saldoInicialInput").addEventListener("change",function(e){ onConfigChange("saldoInicial",e.target.value,false); });
-document.getElementById("efectivoPendienteInput").addEventListener("change",function(e){ onConfigChange("efectivoPendiente",e.target.value,false); });
 document.getElementById("saldoExcelInput").addEventListener("change",function(e){ onConfigChange("saldoExcel",e.target.value,true); });
 document.getElementById("saldoSistemaInput").addEventListener("change",function(e){ onConfigChange("saldoSistema",e.target.value,true); });
 
 // ================================================================
 // Tipo movimiento
 // ================================================================
+var selectedOrigen="caja"; // solo aplica cuando selectedTipo==="pendiente"
+
+function actualizarUIMovimiento(){
+  var esPend=selectedTipo==="pendiente";
+  var esEgreso=selectedTipo==="egreso";
+  // Campo "entregado a" solo en egreso o pendiente de caja
+  var mostrarEntregado = esEgreso || (esPend && selectedOrigen==="caja");
+  document.getElementById("entregadoAField").style.display = mostrarEntregado ? "block":"none";
+  // Selector de origen solo en pendiente
+  document.getElementById("origenPendienteField").style.display = esPend ? "block":"none";
+  // En pendiente de banco: sin billetes, monto directo
+  var usaMontoDirecto = esPend && selectedOrigen==="banco";
+  document.getElementById("denomField").style.display = usaMontoDirecto ? "none":"block";
+  document.getElementById("montoDirectoField").style.display = usaMontoDirecto ? "block":"none";
+  document.getElementById("montoPreviewWrap").style.display = usaMontoDirecto ? "none":"flex";
+  // Hint del origen
+  var hint=document.getElementById("origenHint");
+  if(hint){
+    hint.textContent = selectedOrigen==="caja"
+      ? "De caja: se registra como egreso con billetes y descuenta del inventario."
+      : "De banco: solo el monto; no afecta el saldo del flujo ni los billetes.";
+  }
+}
+
 document.querySelectorAll("#movimientoForm .tipo-btn").forEach(function(btn){
   btn.addEventListener("click",function(){
     document.querySelectorAll("#movimientoForm .tipo-btn").forEach(function(b){ b.classList.remove("active"); });
     btn.classList.add("active");
     selectedTipo=btn.getAttribute("data-tipo");
-    document.getElementById("entregadoAField").style.display=selectedTipo==="egreso"?"block":"none";
+    actualizarUIMovimiento();
+  });
+});
+document.querySelectorAll(".origen-btn").forEach(function(btn){
+  btn.addEventListener("click",function(){
+    document.querySelectorAll(".origen-btn").forEach(function(b){ b.classList.remove("active"); });
+    btn.classList.add("active");
+    selectedOrigen=btn.getAttribute("data-origen");
+    actualizarUIMovimiento();
   });
 });
 
@@ -1381,6 +1483,12 @@ function openModal(){
   editingId=null;
   document.getElementById("modalSubtitle").style.display="none";
   document.getElementById("modal-title-text").textContent="Nuevo movimiento";
+  // Reset a Ingreso / origen Caja
+  selectedTipo="ingreso"; selectedOrigen="caja";
+  document.querySelectorAll("#movimientoForm .tipo-btn").forEach(function(b){ b.classList.toggle("active",b.getAttribute("data-tipo")==="ingreso"); });
+  document.querySelectorAll(".origen-btn").forEach(function(b){ b.classList.toggle("active",b.getAttribute("data-origen")==="caja"); });
+  document.getElementById("montoDirectoInput").value="";
+  actualizarUIMovimiento();
   modalOverlay.classList.add("open");
   document.getElementById("formError").style.display="none";
   setTimeout(function(){ document.getElementById("responsableSelect").focus(); },50);
@@ -1390,13 +1498,18 @@ function openModalEdit(id){
   editingId=id;
   document.getElementById("modal-title-text").textContent="Editar movimiento";
   document.getElementById("modalSubtitle").style.display="block";
-  document.querySelectorAll("#movimientoForm .tipo-btn").forEach(function(b){ b.classList.toggle("active",b.getAttribute("data-tipo")===mov.tipo); });
-  selectedTipo=mov.tipo;
-  document.getElementById("entregadoAField").style.display=mov.tipo==="egreso"?"block":"none";
+  // Determinar tipo visible y origen
+  var tipoVisible = (mov.tipo==="pendiente_banco") ? "pendiente" : (mov.esPendiente ? "pendiente" : mov.tipo);
+  selectedTipo=tipoVisible;
+  selectedOrigen = (mov.tipo==="pendiente_banco") ? "banco" : "caja";
+  document.querySelectorAll("#movimientoForm .tipo-btn").forEach(function(b){ b.classList.toggle("active",b.getAttribute("data-tipo")===tipoVisible); });
+  document.querySelectorAll(".origen-btn").forEach(function(b){ b.classList.toggle("active",b.getAttribute("data-origen")===selectedOrigen); });
+  actualizarUIMovimiento();
   renderPersonasOptions();
   document.getElementById("responsableSelect").value=mov.responsable;
   document.getElementById("entregadoASelect").value=mov.entregadoA||"";
   document.getElementById("descripcionInput").value=mov.descripcion;
+  document.getElementById("montoDirectoInput").value=(mov.tipo==="pendiente_banco")?mov.monto:"";
   DENOMINACIONES.forEach(function(v){
     var inp=document.getElementById("dn_"+v),cant=mov.denominaciones[v]||0;
     inp.value=cant||""; document.getElementById("sb_"+v).textContent=fmt(cant*v);
@@ -1434,29 +1547,57 @@ document.getElementById("movimientoForm").addEventListener("submit",function(e){
   var responsable=document.getElementById("responsableSelect").value;
   var entregadoA=document.getElementById("entregadoASelect").value;
   var descripcion=document.getElementById("descripcionInput").value.trim();
-  var r=readDenoms();
+
+  var esPend=selectedTipo==="pendiente";
+  var esBanco=esPend && selectedOrigen==="banco";
+
+  // Determinar tipo real, monto y denominaciones según el modo
+  var tipoReal, monto, denoms, esPendiente, origenPend;
+  if(esBanco){
+    // Pendiente de banco: solo monto directo, sin billetes, no afecta flujo
+    tipoReal="pendiente_banco";
+    monto=round2(parseFloat(document.getElementById("montoDirectoInput").value)||0);
+    denoms={}; DENOMINACIONES.forEach(function(v){ denoms[v]=0; });
+    esPendiente=false; // el flag se usa para egresos de caja; banco se identifica por el tipo
+    origenPend="banco";
+  } else {
+    // Ingreso, egreso, o pendiente de caja: usan billetes
+    var r=readDenoms();
+    tipoReal = esPend ? "egreso" : selectedTipo; // pendiente de caja se guarda como egreso
+    monto=r.total; denoms=r.denoms;
+    esPendiente = esPend; // marcado como pendiente si venía del modo pendiente
+    origenPend = esPend ? "caja" : "";
+  }
+
+  // Validaciones
   if(!responsable){ errEl.textContent="Selecciona el responsable."; errEl.style.display="block"; return; }
   if(!descripcion){ errEl.textContent="Agrega una descripción."; errEl.style.display="block"; return; }
-  if(r.total<=0){ errEl.textContent="Ingresa al menos una cantidad de billetes."; errEl.style.display="block"; return; }
+  if(esBanco){
+    if(monto<=0){ errEl.textContent="Ingresa el monto del efectivo pendiente."; errEl.style.display="block"; return; }
+  } else {
+    if(monto<=0){ errEl.textContent="Ingresa al menos una cantidad de billetes."; errEl.style.display="block"; return; }
+  }
   errEl.style.display="none";
+
+  var mostrarEntregado = (tipoReal==="egreso");
+  var entregadoFinal = (mostrarEntregado && entregadoA) ? entregadoA : "";
 
   var submitBtn=document.getElementById("submitBtn");
   submitBtn.disabled=true; submitBtn.textContent="Guardando...";
 
-  // Capturar firmas si se dibujaron
+  // Firmas
   var firmaE=firmasState.firmaMovEntrega&&firmasState.firmaMovEntrega.hasDrawn?document.getElementById("firmaMovEntrega").toDataURL("image/png"):"";
   var firmaR2=firmasState.firmaMovRecibe&&firmasState.firmaMovRecibe.hasDrawn?document.getElementById("firmaMovRecibe").toDataURL("image/png"):"";
   var llevaFirmas=(firmaE||firmaR2);
 
   if(editingId){
     var orig=state.movimientos.find(function(m){ return m.id===editingId; });
-    // Conservar firmas previas si no se redibujaron
     var fE=firmaE||(orig&&orig.firmaEntrega)||getFirmaMovLocal(editingId).e||"";
     var fR=firmaR2||(orig&&orig.firmaRecibe)||getFirmaMovLocal(editingId).r||"";
-    var movEd={ id:editingId, fecha:orig?orig.fecha:ahoraLocalISO(), tipo:selectedTipo,
-      responsable:responsable, entregadoA:(selectedTipo==="egreso"&&entregadoA)?entregadoA:"",
-      descripcion:descripcion, denominaciones:r.denoms, monto:r.total,
-      firmaEntrega:fE, firmaRecibe:fR };
+    var movEd={ id:editingId, fecha:orig?orig.fecha:ahoraLocalISO(), tipo:tipoReal,
+      responsable:responsable, entregadoA:entregadoFinal,
+      descripcion:descripcion, denominaciones:denoms, monto:monto,
+      firmaEntrega:fE, firmaRecibe:fR, esPendiente:esPendiente, origenPendiente:origenPend };
     guardarFirmaMovLocal(editingId, fE, fR);
     setSyncState("syncing","Actualizando...");
     api("updateMovimiento",movEd,!!(fE||fR)).then(function(){
@@ -1468,10 +1609,10 @@ document.getElementById("movimientoForm").addEventListener("submit",function(e){
     });
   } else {
     var nid=uid();
-    var mov={ id:nid, fecha:ahoraLocalISO(), tipo:selectedTipo,
-      responsable:responsable, entregadoA:(selectedTipo==="egreso"&&entregadoA)?entregadoA:"",
-      descripcion:descripcion, denominaciones:r.denoms, monto:r.total,
-      firmaEntrega:firmaE, firmaRecibe:firmaR2 };
+    var mov={ id:nid, fecha:ahoraLocalISO(), tipo:tipoReal,
+      responsable:responsable, entregadoA:entregadoFinal,
+      descripcion:descripcion, denominaciones:denoms, monto:monto,
+      firmaEntrega:firmaE, firmaRecibe:firmaR2, esPendiente:esPendiente, origenPendiente:origenPend };
     if(llevaFirmas) guardarFirmaMovLocal(nid, firmaE, firmaR2);
     setSyncState("syncing","Guardando...");
     api("addMovimiento",mov,llevaFirmas).then(function(){
@@ -1501,7 +1642,11 @@ function abrirDetalleMovimiento(id){
   detalleCurrentId=id;
   var mapa=calcSaldosPorMov();
   var saldoRes=mapa[m.id];
-  var signo=m.tipo==="ingreso"?"+":"-";
+  var esBanco=m.tipo==="pendiente_banco";
+  var esIngreso=m.tipo==="ingreso";
+  var signo=esIngreso?"+":"-";
+  var claseMonto=esIngreso?"ingreso":"egreso";
+
   var chips=DENOMINACIONES.filter(function(v){ return m.denominaciones[v]>0; })
     .map(function(v){ return '<div class="mov-detail-chip"><b>'+m.denominaciones[v]+'</b>x L'+v+'</div>'; }).join("");
   if(!chips) chips='<div class="mov-detail-chip">Sin desglose</div>';
@@ -1516,18 +1661,27 @@ function abrirDetalleMovimiento(id){
     return '<div class="det-mov-firma"><div class="nofirma">Sin firma</div><p>'+rol+'</p></div>';
   }
 
+  // Etiqueta de tipo legible
+  var tipoTxt;
+  if(esBanco) tipoTxt="Efectivo pendiente (de banco)";
+  else if(m.esPendiente) tipoTxt="Efectivo pendiente (de caja)";
+  else tipoTxt=esIngreso?"Ingreso":"Egreso";
+
   var html=''+
-    '<div class="det-monto '+m.tipo+'">'+signo+fmt(m.monto)+'</div>'+
+    '<div class="det-monto '+claseMonto+'">'+signo+fmt(m.monto)+'</div>'+
     '<div class="det-info-grid">'+
-      '<span class="k">Tipo</span><span class="v">'+(m.tipo==="ingreso"?"Ingreso":"Egreso")+'</span>'+
+      '<span class="k">Tipo</span><span class="v">'+tipoTxt+'</span>'+
       '<span class="k">Descripción</span><span class="v">'+esc(m.descripcion)+'</span>'+
       '<span class="k">Responsable</span><span class="v">'+esc(m.responsable)+'</span>'+
       (m.entregadoA?'<span class="k">Entregado a</span><span class="v">'+esc(m.entregadoA)+'</span>':'')+
       '<span class="k">Fecha y hora</span><span class="v">'+fechaTxt+'</span>'+
-      '<span class="k">Saldo resultante</span><span class="v">'+(saldoRes!==undefined?fmt(saldoRes):"—")+'</span>'+
+      (esBanco
+        ? '<span class="k">Afecta flujo</span><span class="v">No (solo pendiente)</span>'
+        : '<span class="k">Saldo resultante</span><span class="v">'+(saldoRes!==undefined?fmt(saldoRes):"—")+'</span>')+
     '</div>'+
-    '<div style="font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;">Desglose de billetes</div>'+
-    '<div class="mov-detail-grid">'+chips+'</div>'+
+    (esBanco ? '' :
+      '<div style="font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;">Desglose de billetes</div>'+
+      '<div class="mov-detail-grid">'+chips+'</div>')+
     '<div class="det-mov-firmas">'+celdaFirma(firmaEntrega,"Quien entrega")+celdaFirma(firmaRecibe,"Quien recibe")+'</div>';
 
   document.getElementById("detalleContenido").innerHTML=html;
@@ -1784,7 +1938,8 @@ function prepararArqueo(){
   // Precargar teórico con el saldo del flujo y pendiente con el del flujo
   var t=calcTotales();
   if(!document.getElementById("arqTeorico").value) document.getElementById("arqTeorico").value=t.saldoActual;
-  if(!document.getElementById("arqPendiente").value && state.efectivoPendiente) document.getElementById("arqPendiente").value=state.efectivoPendiente;
+  var pendCalc=calcEfectivoPendiente();
+  if(!document.getElementById("arqPendiente").value && pendCalc) document.getElementById("arqPendiente").value=pendCalc;
   arqRecalcular();
 }
 arqSetFechaHora(); arqRecalcular();
