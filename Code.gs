@@ -90,6 +90,10 @@ function inicializarHojas(ss) {
     mov.getRange('G2:G').setNumberFormat('#,##0.00');
     // Forzar texto plano en columna fecha (B) para que Sheets no la reinterprete
     mov.getRange('B2:B').setNumberFormat('@');
+  } else {
+    // Migración: agregar columnas faltantes a hojas ya existentes (sin borrar datos)
+    asegurarColumnas(ss.getSheetByName('Movimientos'),
+      ['firmaEntrega','firmaRecibe','esPendiente','origenPendiente']);
   }
 
   // Hoja Personas
@@ -112,6 +116,26 @@ function inicializarHojas(ss) {
     arq.getRange('B2:C').setNumberFormat('@');
     arq.getRange('O2:O').setNumberFormat('@');
   }
+}
+
+// ----------------------------------------------------------------
+// asegurarColumnas — agrega al final las columnas que falten en el
+// header de una hoja existente, sin borrar datos. Devuelve true si
+// hubo cambios.
+// ----------------------------------------------------------------
+function asegurarColumnas(sheet, columnasRequeridas) {
+  if (!sheet) return false;
+  var lastCol = sheet.getLastColumn();
+  var headerRange = sheet.getRange(1, 1, 1, Math.max(lastCol, 1));
+  var headers = headerRange.getValues()[0].map(function(x){ return String(x); });
+  var faltantes = [];
+  columnasRequeridas.forEach(function(col) {
+    if (headers.indexOf(col) === -1) faltantes.push(col);
+  });
+  if (faltantes.length === 0) return false;
+  // Escribir las columnas faltantes a continuación del header actual
+  sheet.getRange(1, lastCol + 1, 1, faltantes.length).setValues([faltantes]);
+  return true;
 }
 
 // ----------------------------------------------------------------

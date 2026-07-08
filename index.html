@@ -746,6 +746,10 @@
         </div>
         <p class="hint" id="origenHint">De caja: se registra como egreso con billetes y descuenta del inventario.</p>
       </div>
+      <div class="field-row">
+        <div class="field"><label for="movFecha">Fecha</label><input type="date" id="movFecha"></div>
+        <div class="field"><label for="movHora">Hora</label><input type="time" id="movHora"></div>
+      </div>
       <div class="field">
         <label for="responsableSelect">Responsable</label>
         <div class="person-row">
@@ -894,7 +898,7 @@ var URL_KEY = "flujoCajaScriptUrl";
 // ================================================================
 // CONFIGURACIÓN — PEGA AQUÍ LA URL DE TU APPS SCRIPT WEB APP
 // ================================================================
-var URL_FIJA = "https://script.google.com/macros/s/AKfycbzi4F0mrRpTmDlM0HO_YRyxmik8eLHOzBaRh6pELltL2DzguFp3Wm5TopZEuP2_S4jAsQ/exec";
+var URL_FIJA = "";
 
 var ICONS = {
   trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
@@ -1025,6 +1029,24 @@ function ahoraLocalISO(){
   var off=-d.getTimezoneOffset(); // minutos; Honduras = -360 => off = -(-360)=... getTimezoneOffset da 360 para UTC-6
   var signo=off>=0?"+":"-";
   var abs=Math.abs(off);
+  var offStr=signo+pad(Math.floor(abs/60))+":"+pad(abs%60);
+  return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+
+         "T"+pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds())+offStr;
+}
+// Compone un ISO local a partir de fecha "YYYY-MM-DD" y hora "HH:MM".
+// Si faltan, usa la fecha/hora actual. Conserva los segundos actuales.
+function componerISO(fechaStr, horaStr){
+  var ahora=new Date();
+  var y,mo,dia,h,mi;
+  if(fechaStr && /^\d{4}-\d{2}-\d{2}$/.test(fechaStr)){
+    var pf=fechaStr.split("-"); y=+pf[0]; mo=+pf[1]-1; dia=+pf[2];
+  } else { y=ahora.getFullYear(); mo=ahora.getMonth(); dia=ahora.getDate(); }
+  if(horaStr && /^\d{1,2}:\d{2}/.test(horaStr)){
+    var ph=horaStr.split(":"); h=+ph[0]; mi=+ph[1];
+  } else { h=ahora.getHours(); mi=ahora.getMinutes(); }
+  var d=new Date(y,mo,dia,h,mi,ahora.getSeconds());
+  var off=-d.getTimezoneOffset();
+  var signo=off>=0?"+":"-"; var abs=Math.abs(off);
   var offStr=signo+pad(Math.floor(abs/60))+":"+pad(abs%60);
   return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+
          "T"+pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds())+offStr;
@@ -1488,6 +1510,10 @@ function openModal(){
   document.querySelectorAll("#movimientoForm .tipo-btn").forEach(function(b){ b.classList.toggle("active",b.getAttribute("data-tipo")==="ingreso"); });
   document.querySelectorAll(".origen-btn").forEach(function(b){ b.classList.toggle("active",b.getAttribute("data-origen")==="caja"); });
   document.getElementById("montoDirectoInput").value="";
+  // Precargar fecha y hora actuales
+  var now=new Date();
+  document.getElementById("movFecha").value=now.getFullYear()+"-"+pad(now.getMonth()+1)+"-"+pad(now.getDate());
+  document.getElementById("movHora").value=pad(now.getHours())+":"+pad(now.getMinutes());
   actualizarUIMovimiento();
   modalOverlay.classList.add("open");
   document.getElementById("formError").style.display="none";
@@ -1509,6 +1535,10 @@ function openModalEdit(id){
   document.getElementById("responsableSelect").value=mov.responsable;
   document.getElementById("entregadoASelect").value=mov.entregadoA||"";
   document.getElementById("descripcionInput").value=mov.descripcion;
+  // Cargar fecha y hora del movimiento
+  var dmov=parseFechaISO(mov.fecha);
+  document.getElementById("movFecha").value=dmov.getFullYear()+"-"+pad(dmov.getMonth()+1)+"-"+pad(dmov.getDate());
+  document.getElementById("movHora").value=pad(dmov.getHours())+":"+pad(dmov.getMinutes());
   document.getElementById("montoDirectoInput").value=(mov.tipo==="pendiente_banco")?mov.monto:"";
   DENOMINACIONES.forEach(function(v){
     var inp=document.getElementById("dn_"+v),cant=mov.denominaciones[v]||0;
@@ -1590,11 +1620,14 @@ document.getElementById("movimientoForm").addEventListener("submit",function(e){
   var firmaR2=firmasState.firmaMovRecibe&&firmasState.firmaMovRecibe.hasDrawn?document.getElementById("firmaMovRecibe").toDataURL("image/png"):"";
   var llevaFirmas=(firmaE||firmaR2);
 
+  // Fecha/hora: manual del formulario (o actual si están vacías)
+  var fechaISO=componerISO(document.getElementById("movFecha").value, document.getElementById("movHora").value);
+
   if(editingId){
     var orig=state.movimientos.find(function(m){ return m.id===editingId; });
     var fE=firmaE||(orig&&orig.firmaEntrega)||getFirmaMovLocal(editingId).e||"";
     var fR=firmaR2||(orig&&orig.firmaRecibe)||getFirmaMovLocal(editingId).r||"";
-    var movEd={ id:editingId, fecha:orig?orig.fecha:ahoraLocalISO(), tipo:tipoReal,
+    var movEd={ id:editingId, fecha:fechaISO, tipo:tipoReal,
       responsable:responsable, entregadoA:entregadoFinal,
       descripcion:descripcion, denominaciones:denoms, monto:monto,
       firmaEntrega:fE, firmaRecibe:fR, esPendiente:esPendiente, origenPendiente:origenPend };
@@ -1609,7 +1642,7 @@ document.getElementById("movimientoForm").addEventListener("submit",function(e){
     });
   } else {
     var nid=uid();
-    var mov={ id:nid, fecha:ahoraLocalISO(), tipo:tipoReal,
+    var mov={ id:nid, fecha:fechaISO, tipo:tipoReal,
       responsable:responsable, entregadoA:entregadoFinal,
       descripcion:descripcion, denominaciones:denoms, monto:monto,
       firmaEntrega:firmaE, firmaRecibe:firmaR2, esPendiente:esPendiente, origenPendiente:origenPend };
