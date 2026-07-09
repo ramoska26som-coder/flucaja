@@ -58,6 +58,8 @@ function ejecutar(action, data) {
     case 'addArqueo':        return addArqueo(ss, data);
     case 'updateArqueoFirmas': return updateArqueoFirmas(ss, data);
     case 'deleteArqueo':     return deleteArqueo(ss, data.id);
+    case 'addEtiqueta':      return addEtiqueta(ss, data.texto);
+    case 'deleteEtiqueta':   return deleteEtiqueta(ss, data.texto);
     default:                 return { ok: false, error: 'Acción desconocida: ' + action };
   }
 }
@@ -95,6 +97,10 @@ function inicializarHojas(ss) {
     asegurarColumnas(ss.getSheetByName('Movimientos'),
       ['firmaEntrega','firmaRecibe','esPendiente','origenPendiente']);
   }
+  // Migrar Arqueos si ya existe
+  if (ss.getSheetByName('Arqueos')) {
+    asegurarColumnas(ss.getSheetByName('Arqueos'), ['pendientesLista']);
+  }
 
   // Hoja Personas
   if (!ss.getSheetByName('Personas')) {
@@ -103,12 +109,19 @@ function inicializarHojas(ss) {
     per.setFrozenRows(1);
   }
 
+  // Hoja Etiquetas (descripciones rápidas)
+  if (!ss.getSheetByName('Etiquetas')) {
+    var et = ss.insertSheet('Etiquetas');
+    et.getRange('A1').setValue('texto');
+    et.setFrozenRows(1);
+  }
+
   // Hoja Arqueos
   if (!ss.getSheetByName('Arqueos')) {
     var arq = ss.insertSheet('Arqueos');
     var h = ['id','fecha','hora','responsable','verificador','totalContado',
              'efectivoPendiente','teorico','sistema','diferencia','notas',
-             'denominaciones','firmaResponsable','firmaVerificador','creadoEn'];
+             'denominaciones','firmaResponsable','firmaVerificador','creadoEn','pendientesLista'];
     arq.getRange(1, 1, 1, h.length).setValues([h]);
     arq.setFrozenRows(1);
     // Forzar texto plano en columnas que Sheets intentaría convertir a fecha/hora
@@ -220,9 +233,19 @@ function getData(ss) {
         denominaciones:    denoms,
         firmaResponsable:  String(aobj.firmaResponsable || ''),
         firmaVerificador:  String(aobj.firmaVerificador || ''),
-        creadoEn:          String(aobj.creadoEn || '')
+        creadoEn:          String(aobj.creadoEn || ''),
+        pendientesLista:   (function(){ try{ return JSON.parse(aobj.pendientesLista || '[]'); }catch(e){ return []; } })()
       });
     }
+  }
+
+  // Etiquetas (descripciones rápidas)
+  var etSheet = ss.getSheetByName('Etiquetas');
+  var etValues = etSheet.getDataRange().getValues();
+  var etiquetas = [];
+  for (var e = 1; e < etValues.length; e++) {
+    var txt = String(etValues[e][0]).trim();
+    if (txt) etiquetas.push(txt);
   }
 
   return {
@@ -235,7 +258,8 @@ function getData(ss) {
     },
     movimientos: movimientos,
     personas:    personas,
-    arqueos:     arqueos
+    arqueos:     arqueos,
+    etiquetas:   etiquetas
   };
 }
 
@@ -354,28 +378,34 @@ function updateMovimiento(ss, data) {
 // ----------------------------------------------------------------
 function addArqueo(ss, data) {
   var sheet = ss.getSheetByName('Arqueos');
-  var row = [
-    String(data.id),
-    String(data.fecha),
-    String(data.hora || ''),
-    String(data.responsable || ''),
-    String(data.verificador || ''),
-    Number(data.totalContado) || 0,
-    Number(data.efectivoPendiente) || 0,
-    Number(data.teorico) || 0,
-    Number(data.sistema) || 0,
-    Number(data.diferencia) || 0,
-    String(data.notas || ''),
-    JSON.stringify(data.denominaciones || []),
-    String(data.firmaResponsable || ''),
-    String(data.firmaVerificador || ''),
-    String(data.creadoEn || new Date().toISOString())
-  ];
-  // Asegurar texto plano en fecha/hora/creadoEn antes de escribir
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
   var newRow = sheet.getLastRow() + 1;
-  sheet.getRange(newRow, 2, 1, 2).setNumberFormat('@'); // B,C = fecha,hora
-  sheet.getRange(newRow, 15, 1, 1).setNumberFormat('@'); // O = creadoEn
-  sheet.appendRow(row);
+
+  var v = {};
+  v['id'] = String(data.id);
+  v['fecha'] = String(data.fecha);
+  v['hora'] = String(data.hora || '');
+  v['responsable'] = String(data.responsable || '');
+  v['verificador'] = String(data.verificador || '');
+  v['totalContado'] = Number(data.totalContado) || 0;
+  v['efectivoPendiente'] = Number(data.efectivoPendiente) || 0;
+  v['teorico'] = Number(data.teorico) || 0;
+  v['sistema'] = Number(data.sistema) || 0;
+  v['diferencia'] = Number(data.diferencia) || 0;
+  v['notas'] = String(data.notas || '');
+  v['denominaciones'] = JSON.stringify(data.denominaciones || []);
+  v['firmaResponsable'] = String(data.firmaResponsable || '');
+  v['firmaVerificador'] = String(data.firmaVerificador || '');
+  v['creadoEn'] = String(data.creadoEn || new Date().toISOString());
+  v['pendientesLista'] = JSON.stringify(data.pendientesLista || []);
+
+  var fila = headers.map(function(h){ return v.hasOwnProperty(h) ? v[h] : ''; });
+  // Texto plano en fecha, hora y creadoEn
+  ['fecha','hora','creadoEn'].forEach(function(col){
+    var idx = headers.indexOf(col);
+    if(idx !== -1) sheet.getRange(newRow, idx+1, 1, 1).setNumberFormat('@');
+  });
+  sheet.getRange(newRow, 1, 1, fila.length).setValues([fila]);
   return { ok: true };
 }
 
@@ -432,7 +462,31 @@ function addPersona(ss, nombre) {
 }
 
 // ----------------------------------------------------------------
-// Normalización de fecha/hora — repara valores que Sheets convirtió
+// addEtiqueta / deleteEtiqueta — descripciones rápidas
+// ----------------------------------------------------------------
+function addEtiqueta(ss, texto) {
+  var limpio = String(texto).trim();
+  if (!limpio) return { ok: false, error: 'Etiqueta vacía' };
+  var sheet = ss.getSheetByName('Etiquetas');
+  var values = sheet.getDataRange().getValues();
+  var existe = values.some(function(row) {
+    return String(row[0]).trim().toLowerCase() === limpio.toLowerCase();
+  });
+  if (!existe) sheet.appendRow([limpio]);
+  return { ok: true };
+}
+
+function deleteEtiqueta(ss, texto) {
+  var limpio = String(texto).trim();
+  var sheet = ss.getSheetByName('Etiquetas');
+  var values = sheet.getDataRange().getValues();
+  for (var i = values.length - 1; i >= 1; i--) {
+    if (String(values[i][0]).trim().toLowerCase() === limpio.toLowerCase()) {
+      sheet.deleteRow(i + 1);
+    }
+  }
+  return { ok: true };
+}
 // a objetos Date. Devuelve siempre texto en formato esperado por el
 // frontend: fecha "YYYY-MM-DD", hora "HH:MM".
 // ----------------------------------------------------------------
