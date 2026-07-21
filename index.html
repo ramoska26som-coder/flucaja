@@ -342,6 +342,25 @@
   .monto-preview{display:flex;justify-content:space-between;align-items:center;background:var(--blue-bg);border-radius:8px;padding:10px 12px;margin-bottom:14px;}
   .monto-preview .label{font-size:12.5px;font-weight:600;color:var(--blue-dark);}
   .monto-preview .value{font-family:var(--font-mono);font-size:18px;font-weight:700;color:var(--blue-dark);}
+
+  /* Monto objetivo + sugerencia de denominaciones */
+  .objetivo-row{display:flex;gap:8px;align-items:stretch;}
+  .objetivo-row .compare-input-row{flex:1;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);padding:0 10px;}
+  .objetivo-row .compare-input{border:none;background:transparent;padding:9px 0;width:100%;}
+  .objetivo-row .compare-input:focus{background:transparent;}
+  .btn-sugerir{flex-shrink:0;border:1px solid var(--blue);background:var(--blue-bg);color:var(--blue-dark);
+    border-radius:8px;padding:0 14px;font-family:var(--font-ui);font-size:13px;font-weight:600;cursor:pointer;
+    display:inline-flex;align-items:center;gap:6px;white-space:nowrap;transition:background .12s;}
+  .btn-sugerir:hover{background:#D8E4F5;}
+  .btn-sugerir:disabled{opacity:.5;cursor:not-allowed;}
+  .btn-sugerir svg{width:15px;height:15px;}
+  .match-indicator{margin-top:8px;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:7px;}
+  .match-indicator svg{width:15px;height:15px;flex-shrink:0;}
+  .match-indicator.mi-ok{background:var(--ingreso-bg);color:var(--ingreso);}
+  .match-indicator.mi-falta{background:var(--warn-bg);color:var(--warn);}
+  .match-indicator.mi-sobra{background:var(--egreso-bg);color:var(--egreso);}
+  .match-indicator.mi-idle{background:var(--surface-2);color:var(--ink-faint);}
+  .sugerencia-aviso{margin-top:6px;font-size:11.5px;color:var(--warn);}
   .btn-primary{width:100%;border:none;background:var(--blue-dark);color:#fff;font-family:var(--font-ui);
     font-weight:600;font-size:15px;padding:12px;border-radius:9px;cursor:pointer;transition:background .12s;}
   .btn-primary:hover{background:#16294D;}
@@ -431,6 +450,19 @@
   .det-footer{margin-top:18px;font-size:11.5px;color:var(--ink-faint);text-align:right;}
   .notas-box{margin-top:14px;padding:12px;background:var(--surface-2);border-radius:8px;font-size:13.5px;min-height:40px;white-space:pre-wrap;}
 
+  /* Órdenes de compra */
+  .chip-pend{background:var(--warn-bg);color:var(--warn);}
+  .chip-aprob{background:var(--blue-bg);color:var(--blue-dark);}
+  .chip-reg{background:var(--ingreso-bg);color:var(--ingreso);}
+  #ordenDetalleContenido{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:24px;}
+  #ordenDetalleContenido h2{font-family:var(--font-d);font-size:20px;color:var(--blue-dark);margin:0 0 2px;}
+  #ordenDetalleContenido .ord-monto-grande{font-family:var(--font-mono);font-size:26px;font-weight:700;color:var(--egreso);margin:10px 0 4px;}
+  .ord-campos{margin:16px 0;border-top:1px solid var(--border);}
+  .ord-campo{display:flex;justify-content:space-between;gap:16px;padding:11px 0;border-bottom:1px solid var(--border);font-size:14px;}
+  .ord-campo .lbl{color:var(--ink-soft);}
+  .ord-campo .val{font-weight:600;text-align:right;}
+  .ord-desc-box{margin-top:6px;padding:12px;background:var(--surface-2);border-radius:8px;font-size:14px;white-space:pre-wrap;}
+
   .danger-zone{margin-top:18px;text-align:center;display:flex;justify-content:center;gap:18px;flex-wrap:wrap;}
   .link-danger,.link-secondary{background:none;border:none;font-size:12px;text-decoration:underline;cursor:pointer;font-family:var(--font-ui);}
   .link-danger{color:var(--ink-faint);}
@@ -502,6 +534,7 @@
     <div class="tabs">
       <button class="tab active" data-tab="flujo">Flujo de Caja</button>
       <button class="tab" data-tab="arqueo">Arqueo</button>
+      <button class="tab" data-tab="ordenes">Órdenes</button>
     </div>
   </div>
 
@@ -724,7 +757,166 @@
   </div>
   </div>
 
+  <!-- ===== TAB ÓRDENES DE COMPRA ===== -->
+  <div id="tab-ordenes" class="tab-panel">
+  <div class="wrap">
+
+    <!-- Sub-navegación órdenes -->
+    <div class="tabs-bar" style="padding-left:0;padding-right:0;">
+      <div class="tabs">
+        <button class="tab active" data-otab="nueva">Nueva orden</button>
+        <button class="tab" data-otab="historial">Historial</button>
+      </div>
+    </div>
+
+    <!-- NUEVA ORDEN -->
+    <div id="otab-nueva" style="margin-top:12px;">
+      <div class="arqueo-card">
+        <h2>Emitir orden de compra</h2>
+        <p class="ahint">Registra la solicitud. Una vez con la firma de quien autoriza queda aprobada y lista para registrarse en caja.</p>
+
+        <div class="field-row">
+          <div class="field" style="flex:1;">
+            <label for="ordFecha">Fecha</label>
+            <input type="date" id="ordFecha" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:9px 10px;font-family:var(--font-ui);font-size:14px;">
+          </div>
+          <div class="field" style="flex:1;">
+            <label for="ordHora">Hora</label>
+            <input type="time" id="ordHora" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:9px 10px;font-family:var(--font-ui);font-size:14px;">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="ordDescripcion">Descripción</label>
+          <div class="etiquetas-rapidas" id="ordEtiquetasRapidas"></div>
+          <textarea id="ordDescripcion" placeholder="Detalle de la compra"></textarea>
+        </div>
+
+        <div class="field">
+          <label for="ordMonto">Monto</label>
+          <div class="compare-input-row">
+            <span class="prefix">L</span>
+            <input type="text" inputmode="decimal" class="compare-input" id="ordMonto" placeholder="0.00">
+          </div>
+          <p class="hint">Puedes escribir una operación (ej. <b>450+120</b>) y se calcula sola.</p>
+        </div>
+
+        <div class="field">
+          <label for="ordRecibeSelect">Empleado que recibe</label>
+          <div class="person-row">
+            <select id="ordRecibeSelect"><option value="">Selecciona...</option></select>
+            <button type="button" class="add-person-btn" data-target="ordRecibeSelect">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+          <div class="add-person-inline" id="addPersonRow-ordRecibeSelect" style="display:none;">
+            <input type="text" id="newPersonInput-ordRecibeSelect" placeholder="Nombre del nuevo empleado">
+            <button type="button" class="add-person-confirm" data-target="ordRecibeSelect">Agregar</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="ordAutorizadorSelect">Nombre de quien autoriza</label>
+          <div class="person-row">
+            <select id="ordAutorizadorSelect"><option value="">Selecciona...</option></select>
+            <button type="button" class="add-person-btn" data-target="ordAutorizadorSelect">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+          <div class="add-person-inline" id="addPersonRow-ordAutorizadorSelect" style="display:none;">
+            <input type="text" id="newPersonInput-ordAutorizadorSelect" placeholder="Nombre de quien autoriza">
+            <button type="button" class="add-person-confirm" data-target="ordAutorizadorSelect">Agregar</button>
+          </div>
+        </div>
+
+        <div class="firmas" style="flex-direction:column;margin-top:6px;">
+          <div class="firma-box">
+            <label>FIRMA DE QUIEN AUTORIZA <span style="color:var(--egreso);">*</span></label>
+            <canvas id="firmaOrdenAutoriza" width="500" height="170"></canvas>
+            <div class="firma-foot"><span>Obligatoria para aprobar</span><button type="button" class="link-btn" data-clearord="firmaOrdenAutoriza">Borrar firma</button></div>
+          </div>
+        </div>
+
+        <div class="form-error" id="ordFormError" style="display:none;"></div>
+        <button class="btn-primary" id="ordGuardarBtn" style="margin-top:8px;">Emitir orden aprobada</button>
+        <p class="hint" style="text-align:center;margin-top:10px;">¿Aún sin autorizar? Puedes guardarla como pendiente y firmarla después.</p>
+        <button class="btn btn-ghost" id="ordGuardarPendienteBtn" style="width:100%;">Guardar como pendiente</button>
+      </div>
+    </div>
+
+    <!-- HISTORIAL ÓRDENES -->
+    <div id="otab-historial" style="display:none;margin-top:12px;">
+      <div id="ordenHistLista">
+        <div class="arqueo-card">
+          <h2>Historial de órdenes</h2>
+          <div class="historial-header">
+            <div class="filtros">
+              <button class="filtro-btn active" data-ofiltro="todos">Todas</button>
+              <button class="filtro-btn" data-ofiltro="pendiente">Pendientes</button>
+              <button class="filtro-btn" data-ofiltro="aprobada">Aprobadas</button>
+              <button class="filtro-btn" data-ofiltro="registrada">Registradas</button>
+            </div>
+            <div class="search-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="ordFiltroTexto" placeholder="Buscar descripción o empleado...">
+            </div>
+          </div>
+          <div id="ordListaContenedor"></div>
+        </div>
+      </div>
+      <div id="ordenHistDetalle" style="display:none;">
+        <div class="arqueo-actions arqueo-det-actions" style="justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+          <button class="btn btn-ghost" id="ordVolverBtn">← Volver</button>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-danger" id="ordEliminarBtn">Eliminar</button>
+            <button class="btn btn-ghost" id="ordFirmarBtn" style="display:none;border-color:var(--blue);color:var(--blue);">Aprobar / Firmar</button>
+            <button class="btn btn-blue" id="ordPDFBtn">Descargar PDF</button>
+            <button class="btn btn-blue" id="ordRegistrarBtn" style="display:none;background:var(--blue-dark);">Registrar en caja</button>
+          </div>
+        </div>
+        <div id="ordenDetalleContenido"></div>
+      </div>
+    </div>
+
+  </div>
+  </div>
+
 </div><!-- /mainApp -->
+
+<!-- Modal: aprobar / firmar orden pendiente -->
+<div class="modal-overlay" id="ordFirmarOverlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h2>Aprobar orden</h2>
+      <button type="button" class="modal-close" id="ordFirmarClose">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-subtitle" style="display:block;">Confirma quién autoriza y dibuja su firma para aprobar la orden.</div>
+    <div class="field" style="margin-top:12px;">
+      <label for="ordFirmarAutorizador">Nombre de quien autoriza</label>
+      <div class="person-row">
+        <select id="ordFirmarAutorizador"><option value="">Selecciona...</option></select>
+        <button type="button" class="add-person-btn" data-target="ordFirmarAutorizador">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+      <div class="add-person-inline" id="addPersonRow-ordFirmarAutorizador" style="display:none;">
+        <input type="text" id="newPersonInput-ordFirmarAutorizador" placeholder="Nombre de quien autoriza">
+        <button type="button" class="add-person-confirm" data-target="ordFirmarAutorizador">Agregar</button>
+      </div>
+    </div>
+    <div class="firmas" style="flex-direction:column;margin-top:6px;">
+      <div class="firma-box">
+        <label>FIRMA DE QUIEN AUTORIZA</label>
+        <canvas id="firmaOrdenAutoriza2" width="500" height="180"></canvas>
+        <div class="firma-foot"><span>Firma</span><button class="link-btn" data-clearord2="firmaOrdenAutoriza2">Borrar firma</button></div>
+      </div>
+    </div>
+    <div class="form-error" id="ordFirmarError" style="display:none;"></div>
+    <button class="btn-primary" id="ordFirmarGuardarBtn" style="margin-top:14px;">Aprobar orden</button>
+  </div>
+</div>
 
 <!-- FAB -->
 <button class="fab" id="fabBtn" aria-label="Nuevo movimiento" title="Nuevo movimiento" style="display:none;">
@@ -800,6 +992,21 @@
         <label for="descripcionInput">Descripción</label>
         <div class="etiquetas-rapidas" id="etiquetasRapidas"></div>
         <textarea id="descripcionInput" placeholder="Motivo del movimiento"></textarea>
+      </div>
+      <div class="field" id="montoObjetivoField">
+        <label for="montoObjetivoInput">Monto objetivo (opcional)</label>
+        <div class="objetivo-row">
+          <div class="compare-input-row">
+            <span class="prefix">L</span>
+            <input type="text" inputmode="decimal" class="compare-input" id="montoObjetivoInput" placeholder="0.00 (o 250+80)" autocomplete="off">
+          </div>
+          <button type="button" class="btn-sugerir" id="sugerirDenomBtn" title="Sugerir cómo dar este monto en billetes">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/><path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3L12 3z"/></svg>
+            Sugerir
+          </button>
+        </div>
+        <div class="match-indicator mi-idle" id="matchIndicator" style="display:none;"></div>
+        <div class="sugerencia-aviso" id="sugerenciaAviso" style="display:none;"></div>
       </div>
       <div class="field" id="denomField">
         <label>Cantidad por denominación</label>
@@ -919,7 +1126,7 @@ var URL_KEY = "flujoCajaScriptUrl";
 // ================================================================
 // CONFIGURACIÓN — PEGA AQUÍ LA URL DE TU APPS SCRIPT WEB APP
 // ================================================================
-var URL_FIJA = "https://script.google.com/macros/s/AKfycbzi4F0mrRpTmDlM0HO_YRyxmik8eLHOzBaRh6pELltL2DzguFp3Wm5TopZEuP2_S4jAsQ/exec";
+var URL_FIJA = "";
 
 var ICONS = {
   trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
@@ -939,7 +1146,7 @@ var ICONS = {
 var scriptUrl = URL_FIJA || localStorage.getItem(URL_KEY) || "";
 if(URL_FIJA) localStorage.setItem(URL_KEY, URL_FIJA);
 
-var state = { saldoInicial:0, movimientos:[], saldoExcel:null, saldoSistema:null, efectivoPendiente:0, personas:[], arqueos:[], etiquetas:[] };
+var state = { saldoInicial:0, movimientos:[], saldoExcel:null, saldoSistema:null, efectivoPendiente:0, personas:[], arqueos:[], etiquetas:[], ordenes:[] };
 var selectedTipo = "ingreso";
 var filtroTipo = "todos";
 var searchQuery = "";
@@ -1043,6 +1250,7 @@ function loadData(silent){
     state.personas          = result.personas||[];
     state.arqueos           = result.arqueos||[];
     state.etiquetas         = result.etiquetas||[];
+    state.ordenes           = result.ordenes||[];
     hideError(); showApp(); syncInputsFromState(); renderAll();
     if(silent) setSyncState("ok","Datos actualizados");
   }).catch(function(err){
@@ -1247,6 +1455,8 @@ function renderAll(){
   renderHistorialGroups();
   renderPersonasOptions();
   renderEtiquetas();
+  if(typeof ordRenderLista==="function") ordRenderLista();
+  if(typeof ordRenderEtiquetas==="function") ordRenderEtiquetas();
 }
 
 // ================================================================
@@ -1436,9 +1646,13 @@ function renderHistorialGroups(){
 function renderPersonasOptions(){
   var cfg=[
     {el:document.getElementById("responsableSelect"),empty:false},
-    {el:document.getElementById("entregadoASelect"),empty:true}
+    {el:document.getElementById("entregadoASelect"),empty:true},
+    {el:document.getElementById("ordRecibeSelect"),empty:false},
+    {el:document.getElementById("ordAutorizadorSelect"),empty:false},
+    {el:document.getElementById("ordFirmarAutorizador"),empty:false}
   ];
   cfg.forEach(function(c){
+    if(!c.el) return;
     var prev=c.el.value;
     var ops=c.empty?'<option value="">Sin especificar</option>'
       :(state.personas.length===0?'<option value="" disabled selected>Agrega una persona con +</option>'
@@ -1544,6 +1758,60 @@ function buildDenomGrid(){
     }
   }, true);
 }
+
+// ---- Monto objetivo + sugerencia de denominaciones ----
+(function(){
+  var objInput=document.getElementById("montoObjetivoInput");
+  if(objInput){
+    objInput.addEventListener("input", actualizarMatchIndicator);
+    objInput.addEventListener("blur", function(){
+      var r=evalExpr(objInput.value);
+      if(r!==null && String(objInput.value).trim()!=="") objInput.value=round2(r);
+      actualizarMatchIndicator();
+    });
+  }
+  var sugBtn=document.getElementById("sugerirDenomBtn");
+  if(sugBtn){
+    sugBtn.addEventListener("click", function(){
+      var aviso=document.getElementById("sugerenciaAviso");
+      aviso.style.display="none";
+      var objetivo=leerMontoObjetivo();
+      if(objetivo===null){
+        aviso.style.display="block";
+        aviso.textContent="Escribe primero un monto objetivo válido.";
+        document.getElementById("montoObjetivoInput").focus();
+        return;
+      }
+      if(Math.round(objetivo)!==objetivo){
+        // Hay centavos: los billetes no pueden representarlos exactamente
+        aviso.style.display="block";
+        aviso.textContent="El monto tiene centavos; se sugieren billetes hasta el entero más cercano.";
+      }
+      // Para egresos de caja limitamos por el inventario disponible;
+      // para ingresos no hay límite (entran billetes nuevos).
+      var esEgresoCaja = (selectedTipo==="egreso") || (selectedTipo==="pendiente" && selectedOrigen==="caja");
+      var disponible = esEgresoCaja ? calcInventario() : null;
+
+      var res=sugerirDenoms(objetivo, disponible);
+
+      if(res.restante>0 && disponible){
+        // El inventario no alcanza para cubrir el objetivo exacto: reintentar sin límite
+        var resLibre=sugerirDenoms(objetivo, null);
+        aplicarSugerencia(resLibre.denoms);
+        aviso.style.display="block";
+        aviso.innerHTML="⚠ La caja no tiene billetes suficientes para dar exactamente "+fmt(objetivo)+
+          ". Se muestra un desglose ideal; ajusta manualmente según el efectivo disponible.";
+      } else {
+        aplicarSugerencia(res.denoms);
+        if(res.restante>0){
+          aviso.style.display="block";
+          aviso.textContent="No se pudo completar exactamente; quedó un resto de L "+res.restante+" (denominación mínima L 1).";
+        }
+      }
+    });
+  }
+})();
+
 function readDenoms(){
   var d={},total=0;
   DENOMINACIONES.forEach(function(v){
@@ -1556,12 +1824,76 @@ function readDenoms(){
   });
   return {denoms:d,total:round2(total)};
 }
-function updateMontoPreview(){ document.getElementById("montoPreview").textContent=fmt(readDenoms().total); }
+function updateMontoPreview(){
+  document.getElementById("montoPreview").textContent=fmt(readDenoms().total);
+  actualizarMatchIndicator();
+}
+
+// Lee el monto objetivo (acepta expresiones aritméticas). null si vacío/ inválido.
+function leerMontoObjetivo(){
+  var el=document.getElementById("montoObjetivoInput");
+  if(!el) return null;
+  var raw=String(el.value).trim();
+  if(raw==="") return null;
+  var r=evalExpr(raw);
+  return (r!==null && r>0)?round2(r):null;
+}
+
+// Indicador en vivo: compara denominaciones capturadas vs monto objetivo.
+function actualizarMatchIndicator(){
+  var ind=document.getElementById("matchIndicator");
+  if(!ind) return;
+  var objetivo=leerMontoObjetivo();
+  if(objetivo===null){ ind.style.display="none"; return; }
+  var actual=readDenoms().total;
+  var dif=round2(actual-objetivo);
+  ind.style.display="flex";
+  if(Math.abs(dif)<0.005){
+    ind.className="match-indicator mi-ok";
+    ind.innerHTML=ICONS.check+" Coincide con el monto objetivo ("+fmt(objetivo)+")";
+  } else if(dif<0){
+    ind.className="match-indicator mi-falta";
+    ind.innerHTML=ICONS.alert+" Faltan "+fmt(Math.abs(dif))+" para llegar a "+fmt(objetivo);
+  } else {
+    ind.className="match-indicator mi-sobra";
+    ind.innerHTML=ICONS.alert+" Sobran "+fmt(dif)+" respecto a "+fmt(objetivo);
+  }
+}
+
+// Reparte un monto en billetes (greedy de mayor a menor), opcionalmente
+// limitado por el inventario disponible. Devuelve {denoms, restante, uso}.
+//  - disponible: objeto {valor: cantidadMax} o null para ilimitado.
+function sugerirDenoms(monto, disponible){
+  var restante=Math.round(monto); // trabajamos en enteros de Lempira
+  var denoms={};
+  DENOMINACIONES.forEach(function(v){ denoms[v]=0; });
+  DENOMINACIONES.forEach(function(v){
+    if(restante<=0) return;
+    var max=Math.floor(restante/v);
+    if(disponible){ max=Math.min(max, disponible[v]||0); }
+    if(max>0){ denoms[v]=max; restante-=max*v; }
+  });
+  return {denoms:denoms, restante:restante};
+}
+
+// Aplica una sugerencia a los inputs del formulario.
+function aplicarSugerencia(denoms){
+  DENOMINACIONES.forEach(function(v){
+    var inp=document.getElementById("dn_"+v);
+    inp.value = denoms[v]>0 ? String(denoms[v]) : "";
+    document.getElementById("sb_"+v).textContent=fmt((denoms[v]||0)*v);
+  });
+  document.getElementById("montoPreview").textContent=fmt(readDenoms().total);
+  actualizarMatchIndicator();
+}
 function clearForm(){
   DENOMINACIONES.forEach(function(v){ document.getElementById("dn_"+v).value=""; document.getElementById("sb_"+v).textContent="L 0.00"; });
   document.getElementById("descripcionInput").value="";
   document.getElementById("montoPreview").textContent="L 0.00";
   var md=document.getElementById("montoDirectoInput"); if(md) md.value="";
+  var mo=document.getElementById("montoObjetivoInput"); if(mo) mo.value="";
+  var mi=document.getElementById("matchIndicator"); if(mi) mi.style.display="none";
+  var sa=document.getElementById("sugerenciaAviso"); if(sa) sa.style.display="none";
   document.getElementById("formError").style.display="none";
   if(typeof limpiarFirmasMovCanvas==="function") limpiarFirmasMovCanvas();
   var tog=document.querySelector(".firmas-mov-toggle"); if(tog) tog.open=false;
@@ -1634,6 +1966,7 @@ function actualizarUIMovimiento(){
   // En pendiente de banco: sin billetes, monto directo
   var usaMontoDirecto = esPend && selectedOrigen==="banco";
   document.getElementById("denomField").style.display = usaMontoDirecto ? "none":"block";
+  document.getElementById("montoObjetivoField").style.display = usaMontoDirecto ? "none":"block";
   document.getElementById("montoDirectoField").style.display = usaMontoDirecto ? "block":"none";
   document.getElementById("montoPreviewWrap").style.display = usaMontoDirecto ? "none":"flex";
   // Hint del origen
@@ -1727,7 +2060,7 @@ function precargarFirmaMov(id, dataUrl){
   img.onload=function(){ ctx.drawImage(img,0,0,c.width,c.height); if(firmasState[id]) firmasState[id].hasDrawn=true; };
   img.src=dataUrl;
 }
-function closeModal(){ modalOverlay.classList.remove("open"); editingId=null; clearForm(); }
+function closeModal(){ modalOverlay.classList.remove("open"); editingId=null; if(typeof ordenParaRegistrar!=="undefined") ordenParaRegistrar=null; clearForm(); }
 document.getElementById("fabBtn").addEventListener("click",openModal);
 document.getElementById("modalClose").addEventListener("click",closeModal);
 modalOverlay.addEventListener("click",function(e){ if(e.target===modalOverlay) closeModal(); });
@@ -1813,16 +2146,32 @@ document.getElementById("movimientoForm").addEventListener("submit",function(e){
       descripcion:descripcion, denominaciones:denoms, monto:monto,
       firmaEntrega:firmaE, firmaRecibe:firmaR2, esPendiente:esPendiente, origenPendiente:origenPend };
     if(llevaFirmas) guardarFirmaMovLocal(nid, firmaE, firmaR2);
+    var ordVinculada=ordenParaRegistrar; // capturar antes de cerrar
     setSyncState("syncing","Guardando...");
     apiGuardarMovimiento("addMovimiento",mov).then(function(res){
       state.movimientos.push(mov); closeModal(); renderAll();
       setSyncState("ok", res._firmasSoloLocal?"Guardado (firmas solo en este equipo)":"Movimiento guardado");
+      // Si venía de registrar una orden, marcarla como registrada
+      if(ordVinculada){ marcarOrdenRegistrada(ordVinculada, nid); }
+      ordenParaRegistrar=null;
     }).catch(function(err){
       submitBtn.disabled=false; submitBtn.textContent="Registrar movimiento";
       errEl.textContent="Error al guardar: "+err.message+". Verifica tu conexión y reintenta."; errEl.style.display="block"; setSyncState("err");
     });
   }
 });
+
+// Marca una orden como registrada y la vincula al movimiento creado
+function marcarOrdenRegistrada(ordenId, movId){
+  var o=state.ordenes.find(function(x){ return x.id===ordenId; }); if(!o) return;
+  var actualizada=Object.assign({}, o, { estado:"registrada", movimientoId:movId });
+  state.ordenes=state.ordenes.map(function(x){ return x.id===ordenId?actualizada:x; });
+  if(typeof ordRenderLista==="function") ordRenderLista();
+  apiGuardarOrden("updateOrden",actualizada).catch(function(err){
+    setSyncState("err","Movimiento guardado, pero no se pudo marcar la orden: "+err.message);
+    loadData(true);
+  });
+}
 
 // ================================================================
 // Editar / Eliminar desde historial
@@ -1990,6 +2339,7 @@ document.querySelectorAll(".tab[data-tab]").forEach(function(btn){
     document.getElementById("tab-"+btn.getAttribute("data-tab")).classList.add("active");
     updateFabVisibility();
     if(btn.getAttribute("data-tab")==="arqueo"){ prepararArqueo(); }
+    if(btn.getAttribute("data-tab")==="ordenes"){ ordPrepararNueva(); }
   });
 });
 
@@ -2522,6 +2872,384 @@ document.getElementById("firmarGuardarBtn").addEventListener("click",function(){
   btn.disabled=true; btn.textContent="Guardando...";
   subirFirmasSegundoPlano(id, firmaR||prev.r, firmaV||prev.v);
   setTimeout(function(){ btn.disabled=false; btn.textContent="Guardar firmas"; },1200);
+});
+
+// ================================================================
+// ===================== ÓRDENES DE COMPRA =====================
+// ================================================================
+
+// ---- Guardado robusto de órdenes (POST con firma, fallback GET sin firma) ----
+function apiGuardarOrden(accion, orden){
+  var llevaFirma = !!orden.firmaAutoriza;
+  if(!llevaFirma){ return api(accion, orden, false); }
+  return api(accion, orden, true).catch(function(){
+    var sinFirma = Object.assign({}, orden, { firmaAutoriza:"" });
+    return api(accion, sinFirma, false).then(function(res){ res._firmaSoloLocal=true; return res; });
+  });
+}
+
+// ---- Respaldo local de firmas de órdenes ----
+var FIRMAS_ORD_KEY="flujoCajaFirmasOrd";
+function cargarFirmasOrdLocal(){ try{ var r=localStorage.getItem(FIRMAS_ORD_KEY); return r?JSON.parse(r):{}; }catch(e){ return {}; } }
+function guardarFirmaOrdLocal(id, firma){ try{ var t=cargarFirmasOrdLocal(); t[id]=firma||""; localStorage.setItem(FIRMAS_ORD_KEY, JSON.stringify(t)); }catch(e){} }
+function getFirmaOrdLocal(id){ var t=cargarFirmasOrdLocal(); return t[id]||""; }
+
+// ---- Etiquetas rápidas (reutiliza las mismas del flujo) ----
+function ordRenderEtiquetas(){
+  var cont=document.getElementById("ordEtiquetasRapidas"); if(!cont) return;
+  cont.innerHTML=state.etiquetas.map(function(t){
+    return '<span class="etiq-chip" data-ordetiq="'+esc(t)+'">'+esc(t)+'</span>';
+  }).join("");
+}
+document.getElementById("ordEtiquetasRapidas").addEventListener("click",function(e){
+  var chip=e.target.closest("[data-ordetiq]"); if(!chip) return;
+  var texto=chip.getAttribute("data-ordetiq");
+  var ta=document.getElementById("ordDescripcion");
+  var actual=ta.value.trim();
+  if(actual===""){ ta.value=texto; }
+  else { var sep=/[.,;:]$/.test(actual)?" ":", "; ta.value=actual+sep+texto; }
+  ta.focus();
+});
+
+// ---- Firma de la orden (canvas) ----
+setupFirma("firmaOrdenAutoriza");
+setupFirma("firmaOrdenAutoriza2");
+document.querySelectorAll("[data-clearord]").forEach(function(btn){
+  btn.addEventListener("click",function(){
+    var id=btn.getAttribute("data-clearord");
+    var c=document.getElementById(id),ctx=c.getContext("2d");
+    ctx.fillStyle="#fff"; ctx.fillRect(0,0,c.width,c.height);
+    if(firmasState[id]) firmasState[id].hasDrawn=false;
+  });
+});
+document.querySelectorAll("[data-clearord2]").forEach(function(btn){
+  btn.addEventListener("click",function(){
+    var id=btn.getAttribute("data-clearord2");
+    var c=document.getElementById(id),ctx=c.getContext("2d");
+    ctx.fillStyle="#fff"; ctx.fillRect(0,0,c.width,c.height);
+    if(firmasState[id]) firmasState[id].hasDrawn=false;
+  });
+});
+function limpiarFirmaOrdenCanvas(id){
+  var c=document.getElementById(id); if(!c) return;
+  var ctx=c.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,c.width,c.height);
+  if(firmasState[id]) firmasState[id].hasDrawn=false;
+}
+function precargarFirmaOrden(id, dataUrl){
+  var c=document.getElementById(id); if(!c||!dataUrl) return;
+  var ctx=c.getContext("2d");
+  var img=new Image();
+  img.onload=function(){ ctx.drawImage(img,0,0,c.width,c.height); if(firmasState[id]) firmasState[id].hasDrawn=true; };
+  img.src=dataUrl;
+}
+
+// ---- Sub-tabs órdenes ----
+document.querySelectorAll(".tab[data-otab]").forEach(function(btn){
+  btn.addEventListener("click",function(){
+    document.querySelectorAll(".tab[data-otab]").forEach(function(b){ b.classList.remove("active"); });
+    btn.classList.add("active");
+    var t=btn.getAttribute("data-otab");
+    document.getElementById("otab-nueva").style.display = t==="nueva"?"block":"none";
+    document.getElementById("otab-historial").style.display = t==="historial"?"block":"none";
+    if(t==="historial"){ ordShowLista(); ordRenderLista(); }
+  });
+});
+
+// ---- Preparar formulario nueva orden ----
+function ordPrepararNueva(){
+  renderPersonasOptions();
+  ordRenderEtiquetas();
+  var now=new Date();
+  var f=document.getElementById("ordFecha"), h=document.getElementById("ordHora");
+  if(f && !f.value) f.value=now.getFullYear()+"-"+pad(now.getMonth()+1)+"-"+pad(now.getDate());
+  if(h && !h.value) h.value=pad(now.getHours())+":"+pad(now.getMinutes());
+}
+
+// Evaluar expresión en el monto al perder foco
+document.getElementById("ordMonto").addEventListener("blur",function(){
+  var r=evalExpr(this.value);
+  if(r!==null && String(this.value).trim()!=="") this.value=round2(r);
+});
+
+// ---- Limpiar formulario nueva orden ----
+function ordLimpiarForm(){
+  document.getElementById("ordDescripcion").value="";
+  document.getElementById("ordMonto").value="";
+  document.getElementById("ordRecibeSelect").value="";
+  document.getElementById("ordAutorizadorSelect").value="";
+  limpiarFirmaOrdenCanvas("firmaOrdenAutoriza");
+  document.getElementById("ordFormError").style.display="none";
+  var now=new Date();
+  document.getElementById("ordFecha").value=now.getFullYear()+"-"+pad(now.getMonth()+1)+"-"+pad(now.getDate());
+  document.getElementById("ordHora").value=pad(now.getHours())+":"+pad(now.getMinutes());
+}
+
+// ---- Recolectar datos del formulario ----
+function ordLeerFormulario(requiereFirma){
+  var errEl=document.getElementById("ordFormError");
+  var descripcion=document.getElementById("ordDescripcion").value.trim();
+  var montoR=evalExpr(document.getElementById("ordMonto").value);
+  var monto=montoR!==null?round2(montoR):0;
+  var recibe=document.getElementById("ordRecibeSelect").value;
+  var autorizador=document.getElementById("ordAutorizadorSelect").value;
+
+  if(!descripcion){ errEl.textContent="Agrega una descripción."; errEl.style.display="block"; return null; }
+  if(!monto||monto<=0){ errEl.textContent="Ingresa un monto válido."; errEl.style.display="block"; return null; }
+  if(!recibe){ errEl.textContent="Selecciona el empleado que recibe."; errEl.style.display="block"; return null; }
+
+  var firma = firmasState.firmaOrdenAutoriza && firmasState.firmaOrdenAutoriza.hasDrawn
+    ? document.getElementById("firmaOrdenAutoriza").toDataURL("image/png") : "";
+
+  if(requiereFirma){
+    if(!autorizador){ errEl.textContent="Selecciona quién autoriza."; errEl.style.display="block"; return null; }
+    if(!firma){ errEl.textContent="La firma de quien autoriza es obligatoria para aprobar."; errEl.style.display="block"; return null; }
+  }
+  errEl.style.display="none";
+
+  var fechaISO=componerISO(document.getElementById("ordFecha").value, document.getElementById("ordHora").value);
+  return {
+    descripcion:descripcion, monto:monto, recibe:recibe,
+    autorizador:autorizador, firmaAutoriza:firma, fecha:fechaISO
+  };
+}
+
+// ---- Guardar orden (aprobada o pendiente) ----
+function ordGuardar(estado){
+  var requiereFirma = (estado==="aprobada");
+  var datos=ordLeerFormulario(requiereFirma);
+  if(!datos) return;
+
+  var btnA=document.getElementById("ordGuardarBtn"), btnP=document.getElementById("ordGuardarPendienteBtn");
+  btnA.disabled=true; btnP.disabled=true;
+  var textoOrig = estado==="aprobada"?"Emitir orden aprobada":"Guardar como pendiente";
+
+  var orden={
+    id:uid(), fecha:datos.fecha, descripcion:datos.descripcion, monto:datos.monto,
+    recibe:datos.recibe, autorizador:datos.autorizador, firmaAutoriza:datos.firmaAutoriza,
+    estado:estado, movimientoId:"", creadoEn:ahoraLocalISO()
+  };
+  if(orden.firmaAutoriza) guardarFirmaOrdLocal(orden.id, orden.firmaAutoriza);
+
+  setSyncState("syncing","Guardando orden...");
+  apiGuardarOrden("addOrden",orden).then(function(res){
+    state.ordenes.push(orden);
+    ordLimpiarForm();
+    setSyncState("ok", res._firmaSoloLocal?"Orden guardada (firma solo en este equipo)":"Orden guardada");
+    // Ir al historial para ver la orden creada
+    document.querySelector('.tab[data-otab="historial"]').click();
+  }).catch(function(err){
+    document.getElementById("ordFormError").textContent="Error al guardar: "+err.message;
+    document.getElementById("ordFormError").style.display="block";
+    setSyncState("err");
+  }).then(function(){
+    btnA.disabled=false; btnP.disabled=false;
+    btnA.textContent="Emitir orden aprobada"; btnP.textContent="Guardar como pendiente";
+  });
+}
+document.getElementById("ordGuardarBtn").addEventListener("click",function(){ ordGuardar("aprobada"); });
+document.getElementById("ordGuardarPendienteBtn").addEventListener("click",function(){ ordGuardar("pendiente"); });
+
+// ---- Historial: chips de estado ----
+function ordEstadoChip(estado){
+  if(estado==="registrada") return '<span class="chip chip-reg">Registrada</span>';
+  if(estado==="aprobada")   return '<span class="chip chip-aprob">Aprobada</span>';
+  return '<span class="chip chip-pend">Pendiente</span>';
+}
+
+// ---- Historial: filtros + lista ----
+var ordFiltroEstado="todos";
+document.querySelectorAll("[data-ofiltro]").forEach(function(btn){
+  btn.addEventListener("click",function(){
+    document.querySelectorAll("[data-ofiltro]").forEach(function(b){ b.classList.remove("active"); });
+    btn.classList.add("active");
+    ordFiltroEstado=btn.getAttribute("data-ofiltro");
+    ordRenderLista();
+  });
+});
+document.getElementById("ordFiltroTexto").addEventListener("input",ordRenderLista);
+
+function ordShowLista(){ document.getElementById("ordenHistLista").style.display="block"; document.getElementById("ordenHistDetalle").style.display="none"; }
+function ordShowDetalle(){ document.getElementById("ordenHistLista").style.display="none"; document.getElementById("ordenHistDetalle").style.display="block"; }
+
+function ordRenderLista(){
+  var cont=document.getElementById("ordListaContenedor"); if(!cont) return;
+  var lista=state.ordenes.slice().sort(function(a,b){ return new Date(b.creadoEn)-new Date(a.creadoEn); });
+  var ft=(document.getElementById("ordFiltroTexto").value||"").trim().toLowerCase();
+  var filtrado=lista.filter(function(o){
+    if(ordFiltroEstado!=="todos" && o.estado!==ordFiltroEstado) return false;
+    if(ft){
+      var hay=(o.descripcion||"").toLowerCase().indexOf(ft)!==-1 ||
+              (o.recibe||"").toLowerCase().indexOf(ft)!==-1 ||
+              (o.autorizador||"").toLowerCase().indexOf(ft)!==-1;
+      if(!hay) return false;
+    }
+    return true;
+  });
+  if(!filtrado.length){
+    cont.innerHTML='<div class="empty-state">'+ICONS.inbox+'<div>Sin órdenes en esta vista.</div></div>';
+    return;
+  }
+  cont.innerHTML=filtrado.map(function(o){
+    var d=parseFechaISO(o.fecha);
+    var fh=fmtFechaArqueo(fechaKey(o.fecha))+" · "+pad(d.getHours())+":"+pad(d.getMinutes());
+    return '<div class="arqueo-hist-item" data-id="'+o.id+'">'+
+      '<div class="ahi-main">'+
+        '<span class="ahi-fecha">'+fmt(o.monto)+' · '+esc((o.descripcion||"").slice(0,42))+((o.descripcion||"").length>42?"…":"")+'</span>'+
+        '<span class="ahi-sub">'+fh+' · Recibe: '+esc(o.recibe||"—")+'</span>'+
+      '</div>'+ordEstadoChip(o.estado)+'</div>';
+  }).join("");
+  cont.querySelectorAll(".arqueo-hist-item").forEach(function(item){
+    item.addEventListener("click",function(){ ordAbrirDetalle(item.dataset.id); });
+  });
+}
+
+// ---- Detalle de orden ----
+var ordCurrentId=null;
+function ordAbrirDetalle(id){
+  var o=state.ordenes.find(function(x){ return x.id===id; }); if(!o) return;
+  ordCurrentId=id;
+  var firma=o.firmaAutoriza||getFirmaOrdLocal(id)||"";
+  var d=parseFechaISO(o.fecha);
+  var fh=fmtFechaArqueo(fechaKey(o.fecha))+" · "+pad(d.getHours())+":"+pad(d.getMinutes());
+
+  var firmaHtml = firma
+    ? '<div class="det-firma"><img src="'+firma+'" alt="Firma"><p><strong>'+esc(o.autorizador||"—")+'</strong><br>Autoriza</p></div>'
+    : '<div class="det-firma"><div style="height:90px;border-bottom:1px solid var(--ink);display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:12px;">Sin firma</div><p><strong>'+esc(o.autorizador||"—")+'</strong><br>Autoriza</p></div>';
+
+  var movInfo="";
+  if(o.estado==="registrada" && o.movimientoId){
+    var existe=state.movimientos.some(function(m){ return m.id===o.movimientoId; });
+    movInfo='<div class="notas-box" style="background:var(--ingreso-bg);">Registrada en flujo de caja'+(existe?'':' (el movimiento fue eliminado)')+'.</div>';
+  }
+
+  document.getElementById("ordenDetalleContenido").innerHTML=
+    '<h2>Orden de Compra</h2>'+
+    '<div style="margin-bottom:6px;">'+ordEstadoChip(o.estado)+'</div>'+
+    '<div class="ord-monto-grande">'+fmt(o.monto)+'</div>'+
+    '<div class="ord-campos">'+
+      '<div class="ord-campo"><span class="lbl">Fecha y hora</span><span class="val">'+fh+'</span></div>'+
+      '<div class="ord-campo"><span class="lbl">Empleado que recibe</span><span class="val">'+esc(o.recibe||"—")+'</span></div>'+
+      '<div class="ord-campo"><span class="lbl">Autoriza</span><span class="val">'+esc(o.autorizador||"—")+'</span></div>'+
+    '</div>'+
+    '<div><span class="lbl" style="color:var(--ink-soft);font-size:13px;">Descripción</span><div class="ord-desc-box">'+esc(o.descripcion||"—")+'</div></div>'+
+    movInfo+
+    '<div class="det-firmas" style="margin-top:20px;">'+firmaHtml+'</div>'+
+    '<div class="det-footer">Creada el '+(o.creadoEn?new Date(o.creadoEn).toLocaleString("es-HN"):"—")+'</div>';
+
+  // Botones contextuales según estado
+  var btnFirmar=document.getElementById("ordFirmarBtn");
+  var btnRegistrar=document.getElementById("ordRegistrarBtn");
+  btnFirmar.style.display   = (o.estado==="pendiente") ? "inline-flex":"none";
+  btnRegistrar.style.display= (o.estado==="aprobada")  ? "inline-flex":"none";
+
+  ordShowDetalle();
+}
+document.getElementById("ordVolverBtn").addEventListener("click",function(){ ordShowLista(); ordRenderLista(); });
+
+document.getElementById("ordEliminarBtn").addEventListener("click",function(){
+  if(!confirm("¿Eliminar esta orden? Esta acción no se puede deshacer.")) return;
+  var id=ordCurrentId;
+  state.ordenes=state.ordenes.filter(function(o){ return o.id!==id; });
+  ordShowLista(); ordRenderLista();
+  setSyncState("syncing","Eliminando orden...");
+  api("deleteOrden",{id:id}).then(function(){ setSyncState("ok","Orden eliminada"); })
+    .catch(function(err){ setSyncState("err"); showError("No se pudo eliminar la orden: "+err.message); loadData(true); });
+});
+
+// ---- Aprobar / firmar orden pendiente (modal) ----
+var ordFirmarOverlay=document.getElementById("ordFirmarOverlay");
+function ordAbrirModalFirmar(){
+  var o=state.ordenes.find(function(x){ return x.id===ordCurrentId; }); if(!o) return;
+  renderPersonasOptions();
+  document.getElementById("ordFirmarAutorizador").value=o.autorizador||"";
+  limpiarFirmaOrdenCanvas("firmaOrdenAutoriza2");
+  document.getElementById("ordFirmarError").style.display="none";
+  ordFirmarOverlay.classList.add("open");
+}
+document.getElementById("ordFirmarBtn").addEventListener("click",ordAbrirModalFirmar);
+document.getElementById("ordFirmarClose").addEventListener("click",function(){ ordFirmarOverlay.classList.remove("open"); });
+ordFirmarOverlay.addEventListener("click",function(e){ if(e.target===ordFirmarOverlay) ordFirmarOverlay.classList.remove("open"); });
+
+document.getElementById("ordFirmarGuardarBtn").addEventListener("click",function(){
+  var o=state.ordenes.find(function(x){ return x.id===ordCurrentId; }); if(!o) return;
+  var errEl=document.getElementById("ordFirmarError");
+  var autorizador=document.getElementById("ordFirmarAutorizador").value;
+  var firma = firmasState.firmaOrdenAutoriza2 && firmasState.firmaOrdenAutoriza2.hasDrawn
+    ? document.getElementById("firmaOrdenAutoriza2").toDataURL("image/png") : "";
+  if(!autorizador){ errEl.textContent="Selecciona quién autoriza."; errEl.style.display="block"; return; }
+  if(!firma){ errEl.textContent="Dibuja la firma para aprobar."; errEl.style.display="block"; return; }
+  errEl.style.display="none";
+
+  var actualizada=Object.assign({}, o, { autorizador:autorizador, firmaAutoriza:firma, estado:"aprobada" });
+  guardarFirmaOrdLocal(o.id, firma);
+  var btn=document.getElementById("ordFirmarGuardarBtn");
+  btn.disabled=true; btn.textContent="Aprobando...";
+  setSyncState("syncing","Aprobando orden...");
+  apiGuardarOrden("updateOrden",actualizada).then(function(res){
+    state.ordenes=state.ordenes.map(function(x){ return x.id===o.id?actualizada:x; });
+    ordFirmarOverlay.classList.remove("open");
+    ordAbrirDetalle(o.id); ordRenderLista();
+    setSyncState("ok", res._firmaSoloLocal?"Aprobada (firma solo en este equipo)":"Orden aprobada");
+  }).catch(function(err){
+    errEl.textContent="Error al aprobar: "+err.message; errEl.style.display="block"; setSyncState("err");
+  }).then(function(){ btn.disabled=false; btn.textContent="Aprobar orden"; });
+});
+
+// ---- Registrar orden aprobada en caja (abre modal de movimiento prellenado) ----
+var ordenParaRegistrar=null; // id de la orden que se está registrando
+document.getElementById("ordRegistrarBtn").addEventListener("click",function(){
+  var o=state.ordenes.find(function(x){ return x.id===ordCurrentId; }); if(!o) return;
+  if(o.estado!=="aprobada"){ alert("Solo se pueden registrar órdenes aprobadas."); return; }
+  ordenParaRegistrar=o.id;
+
+  // Abrir el modal de movimiento como Egreso de caja, prellenado
+  openModal();
+  selectedTipo="egreso"; selectedOrigen="caja";
+  document.querySelectorAll("#movimientoForm .tipo-btn").forEach(function(b){ b.classList.toggle("active",b.getAttribute("data-tipo")==="egreso"); });
+  actualizarUIMovimiento();
+  document.getElementById("modal-title-text").textContent="Registrar orden en caja";
+  document.getElementById("modalSubtitle").textContent="Ajusta las denominaciones o marca pendiente. Al guardar, la orden quedará registrada.";
+  document.getElementById("modalSubtitle").style.display="block";
+
+  // Prellenar responsable/entregadoA con el empleado que recibe, descripción y fecha
+  renderPersonasOptions();
+  if(state.personas.indexOf(o.recibe)!==-1){
+    document.getElementById("entregadoASelect").value=o.recibe;
+  }
+  document.getElementById("descripcionInput").value="Orden de compra: "+o.descripcion;
+  // Prellenar el monto objetivo con el monto de la orden para sugerir billetes
+  var moInput=document.getElementById("montoObjetivoInput");
+  if(moInput){ moInput.value=o.monto; }
+  if(typeof actualizarMatchIndicator==="function") actualizarMatchIndicator();
+  var d=parseFechaISO(o.fecha);
+  document.getElementById("movFecha").value=d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+  document.getElementById("movHora").value=pad(d.getHours())+":"+pad(d.getMinutes());
+});
+
+// PDF de la orden
+document.getElementById("ordPDFBtn").addEventListener("click",function(){
+  var original=document.getElementById("ordenDetalleContenido");
+  var clone=original.cloneNode(true);
+  clone.style.position="absolute"; clone.style.left="-9999px"; clone.style.top="0";
+  clone.style.width="760px"; clone.style.border="none"; clone.style.borderRadius="0";
+  document.body.appendChild(clone);
+  var btn=document.getElementById("ordPDFBtn"); btn.disabled=true; btn.textContent="Generando...";
+  html2canvas(clone,{scale:2,backgroundColor:"#ffffff",useCORS:true}).then(function(canvas){
+    document.body.removeChild(clone);
+    var jsPDF=window.jspdf.jsPDF;
+    var pdf=new jsPDF({unit:"pt",format:"a4"});
+    var pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight(),m=30;
+    var ratio=Math.min((pw-m*2)/canvas.width,(ph-m*2)/canvas.height);
+    var w=canvas.width*ratio,h=canvas.height*ratio,x=(pw-w)/2;
+    pdf.addImage(canvas.toDataURL("image/png"),"PNG",x,m,w,h);
+    var o=state.ordenes.find(function(x){ return x.id===ordCurrentId; });
+    pdf.save("orden_"+(o?fechaKey(o.fecha):"compra")+".pdf");
+    btn.disabled=false; btn.textContent="Descargar PDF";
+  }).catch(function(err){
+    if(document.body.contains(clone)) document.body.removeChild(clone);
+    console.error(err); alert("No se pudo generar el PDF.");
+    btn.disabled=false; btn.textContent="Descargar PDF";
+  });
 });
 
 // ================================================================
