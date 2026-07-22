@@ -126,6 +126,18 @@
   .stat-sub{font-size:11px;color:var(--ink-faint);margin-top:3px;}
   .stat-card.saldo .stat-sub{color:rgba(255,255,255,.55);}
 
+  /* Alerta: saldo bajo el límite mínimo configurado */
+  .stat-card.saldo.saldo-bajo{background:#8E2A1F;border-color:#8E2A1F;
+    animation:pulsoAlerta 1.6s ease-in-out 0s 3;}
+  @keyframes pulsoAlerta{
+    0%,100%{box-shadow:0 0 0 0 rgba(192,57,43,0);}
+    50%{box-shadow:0 0 0 5px rgba(192,57,43,.28);}
+  }
+  .saldo-alerta{display:inline-flex;align-items:center;gap:5px;margin-top:6px;
+    background:rgba(255,255,255,.16);color:#fff;border-radius:999px;
+    padding:3px 9px;font-size:11px;font-weight:700;}
+  .saldo-alerta svg{width:12px;height:12px;flex-shrink:0;}
+
   /* ---- Tarjetas pequeñas (pendiente/excel/sistema) ---- */
   .compare-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px;}
   @media(max-width:680px){.compare-grid{grid-template-columns:1fr;}}
@@ -319,6 +331,39 @@
   .etiq-add{background:var(--surface-2);color:var(--ink-soft);border:1px dashed var(--border);border-radius:999px;
     padding:4px 10px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--font-ui);}
   .etiq-add:hover{color:var(--blue);border-color:var(--blue);}
+
+  /* Selector de descripción rápida con buscador (estilo combobox) */
+  .etiq-select{position:relative;margin-bottom:8px;}
+  .etiq-trigger{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;
+    border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:9px 11px;
+    font-family:var(--font-ui);font-size:14px;color:var(--ink-faint);cursor:pointer;text-align:left;}
+  .etiq-trigger:hover{border-color:var(--blue);}
+  .etiq-trigger.abierto{border-color:var(--blue);border-bottom-left-radius:0;border-bottom-right-radius:0;}
+  .etiq-trigger .caret{width:14px;height:14px;flex-shrink:0;color:var(--ink-faint);transition:transform .15s;}
+  .etiq-trigger.abierto .caret{transform:rotate(180deg);}
+  .etiq-panel{position:absolute;z-index:60;top:100%;left:0;right:0;background:var(--surface);
+    border:1px solid var(--blue);border-top:none;border-radius:0 0 8px 8px;
+    box-shadow:0 8px 20px rgba(20,35,60,.13);overflow:hidden;}
+  .etiq-panel[hidden]{display:none;}
+  .etiq-search-wrap{padding:8px;border-bottom:1px solid var(--border);}
+  .etiq-search{width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;
+    font-family:var(--font-ui);font-size:13.5px;}
+  .etiq-search:focus{outline:none;border-color:var(--blue);}
+  .etiq-lista{max-height:210px;overflow-y:auto;}
+  .etiq-grupo{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--ink-faint);padding:8px 12px 4px;}
+  .etiq-op{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;
+    font-size:13.5px;cursor:pointer;color:var(--ink);}
+  .etiq-op:hover,.etiq-op.marcada{background:var(--blue);color:#fff;}
+  .etiq-op .eq-x{flex-shrink:0;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;
+    border-radius:50%;font-size:15px;line-height:1;font-weight:700;color:var(--ink-faint);opacity:0;}
+  .etiq-op:hover .eq-x{opacity:1;color:rgba(255,255,255,.8);}
+  .etiq-op .eq-x:hover{background:rgba(255,255,255,.22);color:#fff;}
+  .etiq-vacio{padding:14px 12px;font-size:13px;color:var(--ink-faint);text-align:center;}
+  .etiq-nueva{display:flex;align-items:center;gap:7px;padding:10px 12px;border-top:1px solid var(--border);
+    font-size:13.5px;font-weight:600;color:var(--blue);cursor:pointer;background:var(--surface-2);}
+  .etiq-nueva:hover{background:var(--blue-bg);}
+  .etiq-nueva svg{width:14px;height:14px;}
   .field-row{display:flex;gap:10px;}
   .field-row .field{flex:1;}
   .person-row{display:flex;gap:8px;}
@@ -788,7 +833,22 @@
 
         <div class="field">
           <label for="ordDescripcion">Descripción</label>
-          <div class="etiquetas-rapidas" id="ordEtiquetasRapidas"></div>
+          <div class="etiq-select" id="etiqSelectOrd">
+            <button type="button" class="etiq-trigger" id="etiqTriggerOrd">
+              <span class="etiq-trigger-txt">Descripción rápida...</span>
+              <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="etiq-panel" id="etiqPanelOrd" hidden>
+              <div class="etiq-search-wrap">
+                <input type="text" class="etiq-search" id="etiqSearchOrd" placeholder="Buscar..." autocomplete="off">
+              </div>
+              <div class="etiq-lista" id="etiqListaOrd"></div>
+              <div class="etiq-nueva" id="etiqNuevaOrd">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>Crear nueva descripción</span>
+              </div>
+            </div>
+          </div>
           <textarea id="ordDescripcion" placeholder="Detalle de la compra"></textarea>
         </div>
 
@@ -990,7 +1050,22 @@
       </div>
       <div class="field">
         <label for="descripcionInput">Descripción</label>
-        <div class="etiquetas-rapidas" id="etiquetasRapidas"></div>
+        <div class="etiq-select" id="etiqSelectMov">
+          <button type="button" class="etiq-trigger" id="etiqTriggerMov">
+            <span class="etiq-trigger-txt">Descripción rápida...</span>
+            <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="etiq-panel" id="etiqPanelMov" hidden>
+            <div class="etiq-search-wrap">
+              <input type="text" class="etiq-search" id="etiqSearchMov" placeholder="Buscar..." autocomplete="off">
+            </div>
+            <div class="etiq-lista" id="etiqListaMov"></div>
+            <div class="etiq-nueva" id="etiqNuevaMov">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>Crear nueva descripción</span>
+            </div>
+          </div>
+        </div>
         <textarea id="descripcionInput" placeholder="Motivo del movimiento"></textarea>
       </div>
       <div class="field" id="montoObjetivoField">
@@ -1080,6 +1155,11 @@
       <div class="desc">Monto base desde el cual se calculan los saldos. Suele ser el efectivo con que arranca la caja.</div>
     </div>
     <div class="config-field">
+      <label for="saldoMinimoInput">Límite mínimo de saldo</label>
+      <input type="number" step="0.01" inputmode="decimal" id="saldoMinimoInput" placeholder="Sin límite">
+      <div class="desc">Si el saldo actual baja de este monto, la tarjeta de saldo se pone en rojo como alerta. Déjalo vacío para desactivar.</div>
+    </div>
+    <div class="config-field">
       <label>Servidor (Google Sheets)</label>
       <button class="btn btn-ghost" id="cambiarUrlBtn" style="width:100%;">Cambiar URL del servidor</button>
       <div class="desc">Los datos en Google Sheets no se pierden al cambiar la URL.</div>
@@ -1126,7 +1206,7 @@ var URL_KEY = "flujoCajaScriptUrl";
 // ================================================================
 // CONFIGURACIÓN — PEGA AQUÍ LA URL DE TU APPS SCRIPT WEB APP
 // ================================================================
-var URL_FIJA = "https://script.google.com/macros/s/AKfycbzi4F0mrRpTmDlM0HO_YRyxmik8eLHOzBaRh6pELltL2DzguFp3Wm5TopZEuP2_S4jAsQ/exec";
+var URL_FIJA = "";
 
 var ICONS = {
   trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
@@ -1146,7 +1226,7 @@ var ICONS = {
 var scriptUrl = URL_FIJA || localStorage.getItem(URL_KEY) || "";
 if(URL_FIJA) localStorage.setItem(URL_KEY, URL_FIJA);
 
-var state = { saldoInicial:0, movimientos:[], saldoExcel:null, saldoSistema:null, efectivoPendiente:0, personas:[], arqueos:[], etiquetas:[], ordenes:[] };
+var state = { saldoInicial:0, movimientos:[], saldoExcel:null, saldoSistema:null, saldoMinimo:null, efectivoPendiente:0, personas:[], arqueos:[], etiquetas:[], ordenes:[] };
 var selectedTipo = "ingreso";
 var filtroTipo = "todos";
 var searchQuery = "";
@@ -1246,6 +1326,7 @@ function loadData(silent){
     state.efectivoPendiente = result.config.efectivoPendiente;
     state.saldoExcel        = result.config.saldoExcel;
     state.saldoSistema      = result.config.saldoSistema;
+    state.saldoMinimo       = (result.config.saldoMinimo===undefined)?null:result.config.saldoMinimo;
     state.movimientos       = result.movimientos||[];
     state.personas          = result.personas||[];
     state.arqueos           = result.arqueos||[];
@@ -1262,6 +1343,8 @@ function syncInputsFromState(){
   document.getElementById("saldoInicialInput").value = state.saldoInicial||"";
   document.getElementById("saldoExcelInput").value = state.saldoExcel!==null?state.saldoExcel:"";
   document.getElementById("saldoSistemaInput").value = state.saldoSistema!==null?state.saldoSistema:"";
+  var sm=document.getElementById("saldoMinimoInput");
+  if(sm) sm.value = state.saldoMinimo!==null?state.saldoMinimo:"";
 }
 
 // ================================================================
@@ -1456,7 +1539,7 @@ function renderAll(){
   renderPersonasOptions();
   renderEtiquetas();
   if(typeof ordRenderLista==="function") ordRenderLista();
-  if(typeof ordRenderEtiquetas==="function") ordRenderEtiquetas();
+
 }
 
 // ================================================================
@@ -1479,6 +1562,36 @@ function aplicarVisibilidadSaldo(){
     if(sub) sub.textContent="Toca el ojo para ver el saldo";
     if(icon) icon.innerHTML=ICONS.ojoCerrado;
   }
+  aplicarAlertaSaldoMinimo();
+}
+
+// Pinta la tarjeta de saldo en rojo si está bajo el límite mínimo configurado.
+// El monto exacto que falta solo se muestra si el saldo está visible.
+function aplicarAlertaSaldoMinimo(){
+  var card=document.querySelector(".stat-card.saldo");
+  if(!card) return;
+  var aviso=document.getElementById("saldoAlerta");
+  var limite=state.saldoMinimo;
+  var bajo = (limite!==null && limite!==undefined && !isNaN(limite) && saldoActualReal < limite);
+
+  card.classList.toggle("saldo-bajo", bajo);
+
+  if(!bajo){
+    if(aviso) aviso.remove();
+    return;
+  }
+  if(!aviso){
+    aviso=document.createElement("div");
+    aviso.className="saldo-alerta";
+    aviso.id="saldoAlerta";
+    var sub=document.getElementById("saldoSub");
+    sub.parentNode.insertBefore(aviso, sub.nextSibling);
+  }
+  aviso.innerHTML=ICONS.alert+"<span>"+
+    (saldoVisible
+      ? "Bajo el mínimo de "+fmt(limite)+" · faltan "+fmt(round2(limite-saldoActualReal))
+      : "Saldo bajo el mínimo")+
+    "</span>";
 }
 function mostrarSaldoTemporal(){
   saldoVisible=true;
@@ -1666,60 +1779,159 @@ function renderPersonasOptions(){
 // ================================================================
 // Etiquetas de descripción rápida
 // ================================================================
-function renderEtiquetas(){
-  var cont=document.getElementById("etiquetasRapidas"); if(!cont) return;
-  var html=state.etiquetas.map(function(t){
-    return '<span class="etiq-chip" data-etiq="'+esc(t)+'">'+esc(t)+
-      '<span class="eq-del" data-del-etiq="'+esc(t)+'" title="Quitar etiqueta">×</span></span>';
-  }).join("");
-  html+='<button type="button" class="etiq-add" id="etiqAddBtn">+ Nueva</button>';
-  cont.innerHTML=html;
+// ================================================================
+// Selector de descripción rápida con buscador (combobox reutilizable)
+// ================================================================
+function crearEtiquetaSelect(opts){
+  var wrap    = document.getElementById(opts.wrapId);
+  var trigger = document.getElementById(opts.triggerId);
+  var panel   = document.getElementById(opts.panelId);
+  var search  = document.getElementById(opts.searchId);
+  var lista   = document.getElementById(opts.listaId);
+  var nuevaBtn= document.getElementById(opts.nuevaId);
+  if(!wrap||!trigger||!panel||!search||!lista||!nuevaBtn) return null;
+
+  var marcado=-1; // índice resaltado con teclado
+  var visibles=[];
+
+  function abierto(){ return !panel.hidden; }
+
+  function render(){
+    var q=search.value.trim().toLowerCase();
+    visibles=state.etiquetas.filter(function(t){
+      return q==="" || t.toLowerCase().indexOf(q)!==-1;
+    });
+    if(!visibles.length){
+      lista.innerHTML='<div class="etiq-vacio">'+
+        (state.etiquetas.length?'Sin coincidencias para "'+esc(search.value.trim())+'"':'Aún no hay descripciones guardadas')+
+        '</div>';
+      marcado=-1;
+      return;
+    }
+    lista.innerHTML='<div class="etiq-grupo">Descripciones</div>'+visibles.map(function(t,i){
+      return '<div class="etiq-op'+(i===marcado?' marcada':'')+'" data-val="'+esc(t)+'" data-i="'+i+'">'+
+        '<span>'+esc(t)+'</span>'+
+        '<span class="eq-x" data-borrar="'+esc(t)+'" title="Eliminar descripción">×</span></div>';
+    }).join("");
+  }
+
+  function abrir(){
+    panel.hidden=false;
+    trigger.classList.add("abierto");
+    search.value=""; marcado=-1;
+    render();
+    setTimeout(function(){ search.focus(); },0);
+  }
+  function cerrar(){
+    panel.hidden=true;
+    trigger.classList.remove("abierto");
+  }
+  function alternar(){ abierto()?cerrar():abrir(); }
+
+  function elegir(texto){
+    opts.onSelect(texto);
+    cerrar();
+  }
+
+  trigger.addEventListener("click", function(e){ e.stopPropagation(); alternar(); });
+  search.addEventListener("input", function(){ marcado=-1; render(); });
+
+  // Navegación con teclado: flechas, Enter para elegir, Escape para cerrar
+  search.addEventListener("keydown", function(e){
+    if(e.key==="Escape"){ e.preventDefault(); cerrar(); trigger.focus(); return; }
+    if(e.key==="ArrowDown"||e.key==="ArrowUp"){
+      e.preventDefault();
+      if(!visibles.length) return;
+      marcado = e.key==="ArrowDown"
+        ? (marcado+1>=visibles.length?0:marcado+1)
+        : (marcado-1<0?visibles.length-1:marcado-1);
+      render();
+      var el=lista.querySelector(".etiq-op.marcada");
+      if(el&&el.scrollIntoView) el.scrollIntoView({block:"nearest"});
+      return;
+    }
+    if(e.key==="Enter"){
+      e.preventDefault();
+      if(marcado>=0&&visibles[marcado]){ elegir(visibles[marcado]); }
+      else if(visibles.length===1){ elegir(visibles[0]); }
+      else if(search.value.trim()){ crearNueva(search.value.trim()); }
+    }
+  });
+
+  lista.addEventListener("click", function(e){
+    var borrar=e.target.closest("[data-borrar]");
+    if(borrar){
+      e.stopPropagation();
+      var t=borrar.getAttribute("data-borrar");
+      if(!confirm('¿Eliminar la descripción "'+t+'"?')) return;
+      state.etiquetas=state.etiquetas.filter(function(x){ return x!==t; });
+      render(); renderEtiquetasTodas();
+      setSyncState("syncing");
+      api("deleteEtiqueta",{texto:t}).then(function(){ setSyncState("ok"); })
+        .catch(function(err){ setSyncState("err","No se pudo quitar: "+err.message); });
+      return;
+    }
+    var op=e.target.closest(".etiq-op");
+    if(op){ elegir(op.getAttribute("data-val")); }
+  });
+
+  function crearNueva(sugerida){
+    var nueva=prompt("Nueva descripción rápida:", sugerida||"");
+    if(nueva===null) return;
+    nueva=nueva.trim(); if(!nueva) return;
+    var existe=state.etiquetas.find(function(x){ return x.toLowerCase()===nueva.toLowerCase(); });
+    if(existe){ elegir(existe); return; }
+    state.etiquetas.push(nueva);
+    renderEtiquetasTodas();
+    setSyncState("syncing");
+    api("addEtiqueta",{texto:nueva}).then(function(){ setSyncState("ok"); })
+      .catch(function(err){ setSyncState("err","No se pudo guardar: "+err.message); });
+    elegir(nueva);
+  }
+  nuevaBtn.addEventListener("click", function(e){
+    e.stopPropagation();
+    crearNueva(search.value.trim());
+  });
+
+  // Cerrar al hacer clic fuera
+  document.addEventListener("click", function(e){
+    if(abierto() && !wrap.contains(e.target)) cerrar();
+  });
+
+  return { render:render, cerrar:cerrar };
 }
-function aplicarEtiqueta(texto){
-  var ta=document.getElementById("descripcionInput");
+
+// Añade el texto elegido al textarea indicado
+function aplicarEtiquetaEn(textareaId, texto){
+  var ta=document.getElementById(textareaId);
   var actual=ta.value.trim();
   if(actual===""){ ta.value=texto; }
   else {
-    // Agregar al final, separando con espacio (o coma si ya termina en palabra)
     var sep=/[.,;:]$/.test(actual)?" ":", ";
     ta.value=actual+sep+texto;
   }
   ta.focus();
 }
-// Delegación de eventos en el contenedor de etiquetas
-document.getElementById("etiquetasRapidas").addEventListener("click",function(e){
-  var del=e.target.closest("[data-del-etiq]");
-  if(del){
-    e.stopPropagation();
-    var t=del.getAttribute("data-del-etiq");
-    if(!confirm('¿Quitar la etiqueta "'+t+'"?')) return;
-    state.etiquetas=state.etiquetas.filter(function(x){ return x!==t; });
-    renderEtiquetas();
-    setSyncState("syncing");
-    api("deleteEtiqueta",{texto:t}).then(function(){ setSyncState("ok"); })
-      .catch(function(err){ setSyncState("err","No se pudo quitar: "+err.message); });
-    return;
-  }
-  var add=e.target.closest("#etiqAddBtn");
-  if(add){
-    var nueva=prompt("Nueva etiqueta de descripción rápida:");
-    if(nueva===null) return;
-    nueva=nueva.trim(); if(!nueva) return;
-    if(state.etiquetas.some(function(x){ return x.toLowerCase()===nueva.toLowerCase(); })){
-      alert("Esa etiqueta ya existe."); return;
-    }
-    state.etiquetas.push(nueva);
-    renderEtiquetas();
-    setSyncState("syncing");
-    api("addEtiqueta",{texto:nueva}).then(function(){ setSyncState("ok"); })
-      .catch(function(err){ setSyncState("err","No se pudo guardar: "+err.message); });
-    return;
-  }
-  var chip=e.target.closest(".etiq-chip");
-  if(chip){
-    aplicarEtiqueta(chip.getAttribute("data-etiq"));
-  }
+
+// Instancias: modal de movimiento y formulario de órdenes
+var etiqSelMov=crearEtiquetaSelect({
+  wrapId:"etiqSelectMov", triggerId:"etiqTriggerMov", panelId:"etiqPanelMov",
+  searchId:"etiqSearchMov", listaId:"etiqListaMov", nuevaId:"etiqNuevaMov",
+  onSelect:function(t){ aplicarEtiquetaEn("descripcionInput", t); }
 });
+var etiqSelOrd=crearEtiquetaSelect({
+  wrapId:"etiqSelectOrd", triggerId:"etiqTriggerOrd", panelId:"etiqPanelOrd",
+  searchId:"etiqSearchOrd", listaId:"etiqListaOrd", nuevaId:"etiqNuevaOrd",
+  onSelect:function(t){ aplicarEtiquetaEn("ordDescripcion", t); }
+});
+
+// Refresca ambas listas (tras agregar/quitar etiquetas o recargar datos)
+function renderEtiquetasTodas(){
+  if(etiqSelMov) etiqSelMov.render();
+  if(etiqSelOrd) etiqSelOrd.render();
+}
+// Alias para compatibilidad con las llamadas existentes
+function renderEtiquetas(){ renderEtiquetasTodas(); }
 
 // ================================================================
 // Formulario denominaciones
@@ -1949,6 +2161,7 @@ function onConfigChange(field,rawValue,nullIfEmpty){
 document.getElementById("saldoInicialInput").addEventListener("change",function(e){ onConfigChange("saldoInicial",e.target.value,false); });
 document.getElementById("saldoExcelInput").addEventListener("change",function(e){ onConfigChange("saldoExcel",e.target.value,true); });
 document.getElementById("saldoSistemaInput").addEventListener("change",function(e){ onConfigChange("saldoSistema",e.target.value,true); });
+document.getElementById("saldoMinimoInput").addEventListener("change",function(e){ onConfigChange("saldoMinimo",e.target.value,true); });
 
 // ================================================================
 // Tipo movimiento
@@ -2497,6 +2710,8 @@ function arqSetFechaHora(){
   document.getElementById("arqHora").value=pad(now.getHours())+":"+pad(now.getMinutes());
 }
 function prepararArqueo(){
+  // Refrescar fecha/hora a la actual cada vez que se entra a la pestaña
+  arqSetFechaHora();
   // Precargar teórico con el saldo del flujo y pendiente con el del flujo
   var t=calcTotales();
   if(!document.getElementById("arqTeorico").value) document.getElementById("arqTeorico").value=t.saldoActual;
@@ -2514,6 +2729,7 @@ document.querySelectorAll(".tab[data-atab]").forEach(function(btn){
     var which=btn.getAttribute("data-atab");
     document.getElementById("atab-nuevo").style.display=which==="nuevo"?"block":"none";
     document.getElementById("atab-historial").style.display=which==="historial"?"block":"none";
+    if(which==="nuevo"){ arqSetFechaHora(); }
     if(which==="historial"){ arqShowLista(); arqRenderLista(); }
   });
 });
@@ -2894,23 +3110,6 @@ function cargarFirmasOrdLocal(){ try{ var r=localStorage.getItem(FIRMAS_ORD_KEY)
 function guardarFirmaOrdLocal(id, firma){ try{ var t=cargarFirmasOrdLocal(); t[id]=firma||""; localStorage.setItem(FIRMAS_ORD_KEY, JSON.stringify(t)); }catch(e){} }
 function getFirmaOrdLocal(id){ var t=cargarFirmasOrdLocal(); return t[id]||""; }
 
-// ---- Etiquetas rápidas (reutiliza las mismas del flujo) ----
-function ordRenderEtiquetas(){
-  var cont=document.getElementById("ordEtiquetasRapidas"); if(!cont) return;
-  cont.innerHTML=state.etiquetas.map(function(t){
-    return '<span class="etiq-chip" data-ordetiq="'+esc(t)+'">'+esc(t)+'</span>';
-  }).join("");
-}
-document.getElementById("ordEtiquetasRapidas").addEventListener("click",function(e){
-  var chip=e.target.closest("[data-ordetiq]"); if(!chip) return;
-  var texto=chip.getAttribute("data-ordetiq");
-  var ta=document.getElementById("ordDescripcion");
-  var actual=ta.value.trim();
-  if(actual===""){ ta.value=texto; }
-  else { var sep=/[.,;:]$/.test(actual)?" ":", "; ta.value=actual+sep+texto; }
-  ta.focus();
-});
-
 // ---- Firma de la orden (canvas) ----
 setupFirma("firmaOrdenAutoriza");
 setupFirma("firmaOrdenAutoriza2");
@@ -2951,6 +3150,7 @@ document.querySelectorAll(".tab[data-otab]").forEach(function(btn){
     var t=btn.getAttribute("data-otab");
     document.getElementById("otab-nueva").style.display = t==="nueva"?"block":"none";
     document.getElementById("otab-historial").style.display = t==="historial"?"block":"none";
+    if(t==="nueva"){ ordPrepararNueva(); }
     if(t==="historial"){ ordShowLista(); ordRenderLista(); }
   });
 });
@@ -2958,11 +3158,12 @@ document.querySelectorAll(".tab[data-otab]").forEach(function(btn){
 // ---- Preparar formulario nueva orden ----
 function ordPrepararNueva(){
   renderPersonasOptions();
-  ordRenderEtiquetas();
+  renderEtiquetasTodas();
   var now=new Date();
   var f=document.getElementById("ordFecha"), h=document.getElementById("ordHora");
-  if(f && !f.value) f.value=now.getFullYear()+"-"+pad(now.getMonth()+1)+"-"+pad(now.getDate());
-  if(h && !h.value) h.value=pad(now.getHours())+":"+pad(now.getMinutes());
+  // Siempre refrescar a la hora actual (evita que se quede pegada)
+  if(f) f.value=now.getFullYear()+"-"+pad(now.getMonth()+1)+"-"+pad(now.getDate());
+  if(h) h.value=pad(now.getHours())+":"+pad(now.getMinutes());
 }
 
 // Evaluar expresión en el monto al perder foco
