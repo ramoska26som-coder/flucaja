@@ -1208,7 +1208,7 @@ var URL_KEY = "flujoCajaScriptUrl";
 // ================================================================
 // CONFIGURACIÓN — PEGA AQUÍ LA URL DE TU APPS SCRIPT WEB APP
 // ================================================================
-var URL_FIJA = "https://script.google.com/macros/s/AKfycbyrBOJXa7Z-YSixze8HT7C8eZPF4r3BqdWbxX6WE2GoOtGqftc2OmbEsGhCVFqXcFtKEQ/exec";
+var URL_FIJA = "https://script.google.com/macros/s/AKfycbyndycY28ue2aFjW1_xDgHoA4cJwmOCXltP7ht7DEfE94sHh1Y_hVUdl0A0nGgnSleS1g/exec";
 
 var ICONS = {
   trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
@@ -1307,6 +1307,19 @@ function api(action, data, usePost, intentos, timeoutMs){
       });
   }
   return intentar(intentos);
+}
+
+// Pide al servidor las firmas de UN registro (bajo demanda) y las cachea.
+// Las firmas ya no vienen en getData para acelerar la carga inicial.
+var _firmasCache = {}; // clave "tipo:id" -> objeto de firmas
+function pedirFirmas(tipo, id){
+  var clave = tipo+":"+id;
+  if(_firmasCache[clave]) return Promise.resolve(_firmasCache[clave]);
+  return api("getFirmas", { tipo:tipo, id:id }, false, 2, 15000).then(function(res){
+    var f = res.firmas || {};
+    _firmasCache[clave] = f;
+    return f;
+  }).catch(function(){ return {}; }); // si falla, seguimos con lo local
 }
 
 // Guarda un registro de forma idempotente y verificada.
@@ -2364,12 +2377,21 @@ function openModalEdit(id){
     inp.value=cant||""; document.getElementById("sb_"+v).textContent=fmt(cant*v);
   });
   updateMontoPreview();
-  // Precargar firmas del movimiento si existen
+  // Precargar firmas del movimiento si existen (local o caché; si no, del servidor)
   limpiarFirmasMovCanvas();
-  var fE=mov.firmaEntrega||getFirmaMovLocal(mov.id).e||"";
-  var fR=mov.firmaRecibe||getFirmaMovLocal(mov.id).r||"";
+  var cacheMov=_firmasCache["movimiento:"+mov.id]||{};
+  var fE=getFirmaMovLocal(mov.id).e||cacheMov.firmaEntrega||"";
+  var fR=getFirmaMovLocal(mov.id).r||cacheMov.firmaRecibe||"";
   if(fE) precargarFirmaMov("firmaMovEntrega", fE);
   if(fR) precargarFirmaMov("firmaMovRecibe", fR);
+  // Si el servidor tiene firmas que no están localmente, traerlas al canvas
+  if((mov.tieneFirmaEntrega&&!fE)||(mov.tieneFirmaRecibe&&!fR)){
+    pedirFirmas("movimiento", mov.id).then(function(f){
+      if(editingId!==mov.id) return;
+      if(f.firmaEntrega&&!fE) precargarFirmaMov("firmaMovEntrega", f.firmaEntrega);
+      if(f.firmaRecibe&&!fR) precargarFirmaMov("firmaMovRecibe", f.firmaRecibe);
+    });
+  }
   document.getElementById("submitBtn").textContent="Guardar cambios";
   document.getElementById("formError").style.display="none";
   modalOverlay.classList.add("open");
@@ -2443,9 +2465,12 @@ document.getElementById("movimientoForm").addEventListener("submit",function(e){
   var fechaISO=componerISO(document.getElementById("movFecha").value, document.getElementById("movHora").value);
 
   if(editingId){
-    var orig=state.movimientos.find(function(m){ return m.id===editingId; });
-    var fE=firmaE||(orig&&orig.firmaEntrega)||getFirmaMovLocal(editingId).e||"";
-    var fR=firmaR2||(orig&&orig.firmaRecibe)||getFirmaMovLocal(editingId).r||"";
+    // Firmas: si el usuario redibujó, usar eso; si no, mandar lo local (si existe).
+    // Si va vacío, el backend conserva la firma que ya estaba guardada.
+    var localEd=getFirmaMovLocal(editingId);
+    var cacheEd=_firmasCache["movimiento:"+editingId]||{};
+    var fE=firmaE||localEd.e||cacheEd.firmaEntrega||"";
+    var fR=firmaR2||localEd.r||cacheEd.firmaRecibe||"";
     var movEd={ id:editingId, fecha:fechaISO, tipo:tipoReal,
       responsable:responsable, entregadoA:entregadoFinal,
       descripcion:descripcion, denominaciones:denoms, monto:monto,
@@ -2526,11 +2551,15 @@ function abrirDetalleMovimiento(id){
   var d=parseFechaISO(m.fecha);
   var fechaTxt=pad(d.getDate())+"/"+pad(d.getMonth()+1)+"/"+d.getFullYear()+" "+pad(d.getHours())+":"+pad(d.getMinutes());
 
-  var firmaEntrega=m.firmaEntrega||getFirmaMovLocal(id).e||"";
-  var firmaRecibe=m.firmaRecibe||getFirmaMovLocal(id).r||"";
-  function celdaFirma(img,rol){
-    if(img) return '<div class="det-mov-firma"><img src="'+img+'"><p>'+rol+'</p></div>';
-    return '<div class="det-mov-firma"><div class="nofirma">Sin firma</div><p>'+rol+'</p></div>';
+  var localMov=getFirmaMovLocal(id);
+  var firmaEntrega=localMov.e||"";
+  var firmaRecibe=localMov.r||"";
+  function celdaFirma(img,rol,slot){
+    if(img) return '<div class="det-mov-firma" data-firmaslot="'+slot+'"><img src="'+img+'"><p>'+rol+'</p></div>';
+    // Si el servidor indica que existe firma pero no la tenemos local, mostrar "cargando"
+    var faltante=(slot==="e"&&m.tieneFirmaEntrega)||(slot==="r"&&m.tieneFirmaRecibe);
+    var cuerpo=faltante?'<div class="nofirma">Cargando firma...</div>':'<div class="nofirma">Sin firma</div>';
+    return '<div class="det-mov-firma" data-firmaslot="'+slot+'">'+cuerpo+'<p>'+rol+'</p></div>';
   }
 
   // Etiqueta de tipo legible
@@ -2554,10 +2583,32 @@ function abrirDetalleMovimiento(id){
     (esBanco ? '' :
       '<div style="font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;">Desglose de billetes</div>'+
       '<div class="mov-detail-grid">'+chips+'</div>')+
-    '<div class="det-mov-firmas">'+celdaFirma(firmaEntrega,"Quien entrega")+celdaFirma(firmaRecibe,"Quien recibe")+'</div>';
+    '<div class="det-mov-firmas">'+celdaFirma(firmaEntrega,"Quien entrega","e")+celdaFirma(firmaRecibe,"Quien recibe","r")+'</div>';
 
   document.getElementById("detalleContenido").innerHTML=html;
   detalleOverlay.classList.add("open");
+
+  // Si el servidor tiene firmas que no están localmente, traerlas y pintarlas
+  var faltaE=m.tieneFirmaEntrega && !firmaEntrega;
+  var faltaR=m.tieneFirmaRecibe && !firmaRecibe;
+  if(faltaE||faltaR){
+    pedirFirmas("movimiento", id).then(function(f){
+      if(detalleCurrentId!==id) return; // el usuario ya cerró/cambió
+      pintarFirmaEnSlot("e", f.firmaEntrega);
+      pintarFirmaEnSlot("r", f.firmaRecibe);
+    });
+  }
+}
+// Reemplaza el contenido de una celda de firma del detalle de movimiento
+function pintarFirmaEnSlot(slot, dataUrl){
+  var cont=document.querySelector('#detalleContenido .det-mov-firma[data-firmaslot="'+slot+'"]');
+  if(!cont) return;
+  var rol=cont.querySelector("p")?cont.querySelector("p").textContent:"";
+  if(dataUrl){
+    cont.innerHTML='<img src="'+dataUrl+'"><p>'+rol+'</p>';
+  } else {
+    cont.innerHTML='<div class="nofirma">Sin firma</div><p>'+rol+'</p>';
+  }
 }
 function cerrarDetalle(){ detalleOverlay.classList.remove("open"); detalleCurrentId=null; }
 document.getElementById("detalleClose").addEventListener("click",cerrarDetalle);
@@ -3050,11 +3101,14 @@ function arqAbrirDetalle(id){
   var r=state.arqueos.find(function(x){ return x.id===id; }); if(!r) return;
   arqCurrentId=id;
 
-  // Resolver firmas: primero la del servidor, si no, el respaldo local de este equipo
+  // Resolver firmas: primero el respaldo local de este equipo; si falta y el
+  // servidor indica que existe, se piden aparte (no vienen en getData).
   var local=getFirmaLocal(id);
-  var firmaR=r.firmaResponsable||local.r||"";
-  var firmaV=r.firmaVerificador||local.v||"";
-  var faltanFirmas=(!firmaR||!firmaV);
+  var firmaR=local.r||"";
+  var firmaV=local.v||"";
+  var tieneR=(r.tieneFirmaResponsable!==undefined)?r.tieneFirmaResponsable:!!r.firmaResponsable;
+  var tieneV=(r.tieneFirmaVerificador!==undefined)?r.tieneFirmaVerificador:!!r.firmaVerificador;
+  var faltanFirmas=((tieneR&&!firmaR)||(tieneV&&!firmaV)||!tieneR||!tieneV);
 
   // Detectar si el arqueo guardó el desglose teórico por denominación
   var tieneTeorico=r.denominaciones.some(function(d){ return d.teorico!==undefined; });
@@ -3075,11 +3129,15 @@ function arqAbrirDetalle(id){
     : '<thead><tr><th>Cantidad</th><th>Denominación</th><th>Total</th></tr></thead>';
   var tfootColspan=tieneTeorico?4:2;
 
-  function firmaCelda(img, nombre, rol){
+  function firmaCelda(img, nombre, rol, slot){
     if(img){
-      return '<div class="det-firma"><img src="'+img+'" alt="Firma"><p><strong>'+esc(nombre||"—")+'</strong><br>'+rol+'</p></div>';
+      return '<div class="det-firma" data-arqslot="'+slot+'"><img src="'+img+'" alt="Firma"><p><strong>'+esc(nombre||"—")+'</strong><br>'+rol+'</p></div>';
     }
-    return '<div class="det-firma"><div style="height:90px;border-bottom:1px solid var(--ink);display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:12px;">Sin firma</div><p><strong>'+esc(nombre||"—")+'</strong><br>'+rol+'</p></div>';
+    var faltante=(slot==="r"&&tieneR)||(slot==="v"&&tieneV);
+    var cuerpo=faltante
+      ? '<div style="height:90px;border-bottom:1px solid var(--ink);display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:12px;">Cargando firma...</div>'
+      : '<div style="height:90px;border-bottom:1px solid var(--ink);display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:12px;">Sin firma</div>';
+    return '<div class="det-firma" data-arqslot="'+slot+'">'+cuerpo+'<p><strong>'+esc(nombre||"—")+'</strong><br>'+rol+'</p></div>';
   }
 
   // Lista de efectivos pendientes: del snapshot guardado, o del localStorage, o vacío
@@ -3114,15 +3172,38 @@ function arqAbrirDetalle(id){
     (r.notas?'<div class="notas-box">'+esc(r.notas)+'</div>':'')+
     pendHtml+
     '<div class="det-firmas">'+
-      firmaCelda(firmaR, r.responsable, "Responsable de caja")+
-      firmaCelda(firmaV, r.verificador, "Verificado por")+
+      firmaCelda(firmaR, r.responsable, "Responsable de caja", "r")+
+      firmaCelda(firmaV, r.verificador, "Verificado por", "v")+
     '</div>'+
     '<div class="det-footer">Generado el '+new Date(r.creadoEn).toLocaleString("es-HN")+'</div>';
   arqShowDetalle();
 
+  // Traer firmas del servidor si faltan localmente
+  if((tieneR&&!firmaR)||(tieneV&&!firmaV)){
+    pedirFirmas("arqueo", id).then(function(f){
+      if(arqCurrentId!==id) return;
+      pintarFirmaArqueo("r", f.firmaResponsable, r.responsable, "Responsable de caja");
+      pintarFirmaArqueo("v", f.firmaVerificador, r.verificador, "Verificado por");
+      // Recalcular botón de firmar
+      var fr=f.firmaResponsable||firmaR, fv=f.firmaVerificador||firmaV;
+      var fb=document.getElementById("arqFirmarBtn");
+      if(fb) fb.style.display=(!fr||!fv)?"inline-flex":"none";
+    });
+  }
+
   // Mostrar/ocultar botón de firmar según falten firmas
   var firmarBtn=document.getElementById("arqFirmarBtn");
   if(firmarBtn) firmarBtn.style.display=faltanFirmas?"inline-flex":"none";
+}
+// Reemplaza una celda de firma del detalle de arqueo
+function pintarFirmaArqueo(slot, dataUrl, nombre, rol){
+  var cont=document.querySelector('#arqueoDetalleContenido .det-firma[data-arqslot="'+slot+'"]');
+  if(!cont) return;
+  if(dataUrl){
+    cont.innerHTML='<img src="'+dataUrl+'" alt="Firma"><p><strong>'+esc(nombre||"—")+'</strong><br>'+rol+'</p>';
+  } else {
+    cont.innerHTML='<div style="height:90px;border-bottom:1px solid var(--ink);display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:12px;">Sin firma</div><p><strong>'+esc(nombre||"—")+'</strong><br>'+rol+'</p>';
+  }
 }
 document.getElementById("arqVolverBtn").addEventListener("click",function(){ arqShowLista(); arqRenderLista(); });
 document.getElementById("arqEliminarBtn").addEventListener("click",function(){
@@ -3196,11 +3277,12 @@ document.querySelectorAll("[data-clear2]").forEach(function(btn){
 });
 
 document.getElementById("arqFirmarBtn").addEventListener("click",function(){
-  // Precargar las firmas que ya existan (servidor o local) en los canvas
+  // Precargar las firmas que ya existan (caché del servidor o local) en los canvas
   var r=state.arqueos.find(function(x){ return x.id===arqCurrentId; }); if(!r) return;
   var local=getFirmaLocal(arqCurrentId);
-  var firmaR=r.firmaResponsable||local.r||"";
-  var firmaV=r.firmaVerificador||local.v||"";
+  var cache=_firmasCache["arqueo:"+arqCurrentId]||{};
+  var firmaR=cache.firmaResponsable||local.r||"";
+  var firmaV=cache.firmaVerificador||local.v||"";
   limpiarCanvas2("firmaResponsable2"); limpiarCanvas2("firmaVerificador2");
   precargarEnCanvas("firmaResponsable2", firmaR);
   precargarEnCanvas("firmaVerificador2", firmaV);
@@ -3467,13 +3549,18 @@ var ordCurrentId=null;
 function ordAbrirDetalle(id){
   var o=state.ordenes.find(function(x){ return x.id===id; }); if(!o) return;
   ordCurrentId=id;
-  var firma=o.firmaAutoriza||getFirmaOrdLocal(id)||"";
+  var firma=getFirmaOrdLocal(id)||"";
+  var tieneFirma=(o.tieneFirmaAutoriza!==undefined)?o.tieneFirmaAutoriza:!!o.firmaAutoriza;
   var d=parseFechaISO(o.fecha);
   var fh=fmtFechaArqueo(fechaKey(o.fecha))+" · "+pad(d.getHours())+":"+pad(d.getMinutes());
 
-  var firmaHtml = firma
-    ? '<div class="det-firma"><img src="'+firma+'" alt="Firma"><p><strong>'+esc(o.autorizador||"—")+'</strong><br>Autoriza</p></div>'
-    : '<div class="det-firma"><div style="height:90px;border-bottom:1px solid var(--ink);display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:12px;">Sin firma</div><p><strong>'+esc(o.autorizador||"—")+'</strong><br>Autoriza</p></div>';
+  var firmaHtml;
+  if(firma){
+    firmaHtml='<div class="det-firma" data-ordfirma="1"><img src="'+firma+'" alt="Firma"><p><strong>'+esc(o.autorizador||"—")+'</strong><br>Autoriza</p></div>';
+  } else {
+    var txt=tieneFirma?"Cargando firma...":"Sin firma";
+    firmaHtml='<div class="det-firma" data-ordfirma="1"><div style="height:90px;border-bottom:1px solid var(--ink);display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:12px;">'+txt+'</div><p><strong>'+esc(o.autorizador||"—")+'</strong><br>Autoriza</p></div>';
+  }
 
   var movInfo="";
   if(o.estado==="registrada" && o.movimientoId){
@@ -3502,6 +3589,21 @@ function ordAbrirDetalle(id){
   btnRegistrar.style.display= (o.estado==="aprobada")  ? "inline-flex":"none";
 
   ordShowDetalle();
+
+  // Traer la firma del servidor si falta localmente
+  if(tieneFirma && !firma){
+    pedirFirmas("orden", id).then(function(f){
+      if(ordCurrentId!==id) return;
+      var cont=document.querySelector('#ordenDetalleContenido .det-firma[data-ordfirma="1"]');
+      if(!cont) return;
+      if(f.firmaAutoriza){
+        guardarFirmaOrdLocal(id, f.firmaAutoriza); // cachear local para próximas veces
+        cont.innerHTML='<img src="'+f.firmaAutoriza+'" alt="Firma"><p><strong>'+esc(o.autorizador||"—")+'</strong><br>Autoriza</p>';
+      } else {
+        cont.innerHTML='<div style="height:90px;border-bottom:1px solid var(--ink);display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:12px;">Sin firma</div><p><strong>'+esc(o.autorizador||"—")+'</strong><br>Autoriza</p>';
+      }
+    });
+  }
 }
 document.getElementById("ordVolverBtn").addEventListener("click",function(){ ordShowLista(); ordRenderLista(); });
 
