@@ -593,6 +593,8 @@
         <div class="error-banner-title">Error de sincronización</div>
         <div class="error-banner-msg" id="errorMsg"></div>
         <button class="btn-retry" id="retryBtn">Reintentar</button>
+        <button class="btn-retry" id="diagBtn" style="margin-left:8px;background:transparent;border:1px solid currentColor;">Diagnosticar conexión</button>
+        <div id="diagResultado" style="margin-top:10px;font-size:12.5px;white-space:pre-wrap;display:none;"></div>
       </div>
     </div>
 
@@ -1206,7 +1208,7 @@ var URL_KEY = "flujoCajaScriptUrl";
 // ================================================================
 // CONFIGURACIÓN — PEGA AQUÍ LA URL DE TU APPS SCRIPT WEB APP
 // ================================================================
-var URL_FIJA = "https://script.google.com/macros/s/AKfycbzi4F0mrRpTmDlM0HO_YRyxmik8eLHOzBaRh6pELltL2DzguFp3Wm5TopZEuP2_S4jAsQ/exec";
+var URL_FIJA = "https://script.google.com/macros/s/AKfycbyrBOJXa7Z-YSixze8HT7C8eZPF4r3BqdWbxX6WE2GoOtGqftc2OmbEsGhCVFqXcFtKEQ/exec";
 
 var ICONS = {
   trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
@@ -1278,8 +1280,10 @@ function parsearRespuesta(resp){
 
 // Llamada base con timeout, parseo tolerante y reintentos automáticos.
 // intentos = número total de intentos (por defecto 3).
-function api(action, data, usePost, intentos){
+// timeoutMs = tope por intento (por defecto 20s).
+function api(action, data, usePost, intentos, timeoutMs){
   intentos = intentos || 3;
+  timeoutMs = timeoutMs || 20000;
   var body = JSON.stringify({ action:action, data:data||null });
   var url, opciones;
   if(usePost){
@@ -1290,7 +1294,7 @@ function api(action, data, usePost, intentos){
   }
 
   function intentar(restantes){
-    return fetchConTimeout(url, opciones, 20000)
+    return fetchConTimeout(url, opciones, timeoutMs)
       .then(parsearRespuesta)
       .catch(function(err){
         if(restantes > 1){
@@ -1418,7 +1422,8 @@ function hideError(){ document.getElementById("errorBanner").classList.remove("v
 function loadData(silent){
   if(!silent) showLoading("Cargando datos desde Google Sheets...");
   else setSyncState("syncing","Recargando...");
-  return api("getData").then(function(result){
+  // Carga inicial: 2 intentos de 12s (falla en ~26s máx en vez de 60s+)
+  return api("getData", null, false, silent?3:2, silent?20000:12000).then(function(result){
     state.saldoInicial      = result.config.saldoInicial;
     state.efectivoPendiente = result.config.efectivoPendiente;
     state.saldoExcel        = result.config.saldoExcel;
@@ -1432,8 +1437,14 @@ function loadData(silent){
     hideError(); showApp(); syncInputsFromState(); renderAll();
     if(silent) setSyncState("ok","Datos actualizados");
   }).catch(function(err){
-    if(!silent){ showApp(); showError("No se pudo conectar: "+err.message); }
-    else { setSyncState("err","Error al recargar"); showError("No se pudo recargar: "+err.message); }
+    // Mostrar la app igual (con lo que haya) y un error accionable
+    showApp();
+    var msg = "No se pudo cargar: "+err.message;
+    if(/página en vez de datos|no válida|vacía/i.test(err.message)){
+      msg += " — Suele deberse a que el despliegue de Apps Script no está en su última versión. En Apps Script: Implementar → Administrar implementaciones → editar (lápiz) → Versión: Nueva versión → Implementar.";
+    }
+    showError(msg);
+    if(silent) setSyncState("err","Error al recargar");
   });
 }
 function syncInputsFromState(){
@@ -2599,6 +2610,46 @@ document.getElementById("toggleSaldoBtn").addEventListener("click",function(){
 });
 document.getElementById("recargarFooterBtn").addEventListener("click",doReload);
 document.getElementById("retryBtn").addEventListener("click",function(){ hideError(); loadData(true); });
+
+// Diagnóstico de conexión: prueba el endpoint y explica qué devolvió.
+document.getElementById("diagBtn").addEventListener("click",function(){
+  var box=document.getElementById("diagResultado");
+  box.style.display="block";
+  box.textContent="Probando conexión con el servidor...";
+  if(!scriptUrl){ box.textContent="⚠ No hay URL de servidor configurada (engranaje → Servidor)."; return; }
+  var url=scriptUrl+"?payload="+encodeURIComponent(JSON.stringify({action:"getData"}));
+  fetchConTimeout(url,{method:"GET"},15000).then(function(resp){
+    var txt=(resp.texto||"").trim();
+    var diag="Estado HTTP: "+resp.status+"\n";
+    if(txt===""){
+      diag+="✗ El servidor devolvió una respuesta VACÍA.\nProbablemente el despliegue no está activo. Crea una Nueva versión en Administrar implementaciones.";
+    } else if(txt.charAt(0)==="<"){
+      diag+="✗ El servidor devolvió una PÁGINA HTML, no datos.\n";
+      if(/autoriz|authoriz|sign in|acceder|permiso/i.test(txt)){
+        diag+="Parece pedir AUTORIZACIÓN. Vuelve a autorizar el script y confirma que el despliegue tiene acceso 'Cualquier persona'.";
+      } else if(/no se encontr|not found|error|no existe/i.test(txt)){
+        diag+="La URL responde con un error. Verifica que el despliegue esté en su Nueva versión (no basta con guardar el código).";
+      } else {
+        diag+="Casi siempre significa que el despliegue quedó en una versión vieja o rota. En Apps Script: Implementar → Administrar implementaciones → editar → Versión: Nueva versión → Implementar.";
+      }
+    } else {
+      try{
+        var j=JSON.parse(txt);
+        if(j.ok){
+          diag+="✓ El servidor respondió correctamente con datos JSON.\nEl backend está bien. Si la app no cargaba, era caché del navegador: recarga con Ctrl+F5.\nMovimientos: "+((j.movimientos||[]).length)+" · Órdenes: "+((j.ordenes||[]).length);
+        } else {
+          diag+="✗ El servidor respondió pero con error: "+(j.error||"desconocido");
+        }
+      }catch(e){
+        diag+="✗ El servidor devolvió texto que no es JSON válido:\n"+txt.slice(0,120);
+      }
+    }
+    box.textContent=diag;
+  }).catch(function(err){
+    box.textContent="✗ No se pudo contactar el servidor: "+err.message+
+      "\n\nRevisa: (1) que la URL en el engranaje termine en /exec, (2) tu conexión a internet, (3) que el despliegue tenga acceso 'Cualquier persona'.";
+  });
+});
 
 var configOverlay=document.getElementById("configOverlay");
 document.getElementById("configBtn").addEventListener("click",function(){
