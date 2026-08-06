@@ -1206,7 +1206,7 @@ var URL_KEY = "flujoCajaScriptUrl";
 // ================================================================
 // CONFIGURACIÓN — PEGA AQUÍ LA URL DE TU APPS SCRIPT WEB APP
 // ================================================================
-var URL_FIJA = "";
+var URL_FIJA = "https://script.google.com/macros/s/AKfycbzi4F0mrRpTmDlM0HO_YRyxmik8eLHOzBaRh6pELltL2DzguFp3Wm5TopZEuP2_S4jAsQ/exec";
 
 var ICONS = {
   trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
@@ -1241,37 +1241,134 @@ var editingId = null;
 //    Un fetch POST sin headers personalizados es una "petición simple"
 //    y el navegador no hace preflight.
 // ================================================================
-function api(action, data, usePost){
-  var body = JSON.stringify({ action:action, data:data||null });
-  var req;
-  if(usePost){
-    // NO agregar headers: dejar que sea una "simple request" (evita preflight OPTIONS)
-    req = fetch(scriptUrl, { method:"POST", body:body });
-  } else {
-    req = fetch(scriptUrl + "?payload=" + encodeURIComponent(body));
-  }
-  return req
-    .then(function(r){ return r.json(); })
-    .then(function(json){ if(!json.ok) throw new Error(json.error||"Error en el servidor"); return json; });
+// Realiza un fetch con timeout. Devuelve el texto crudo de la respuesta.
+function fetchConTimeout(url, opciones, ms){
+  opciones = opciones || {};
+  var ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+  if(ctrl) opciones.signal = ctrl.signal;
+  var timer = setTimeout(function(){ if(ctrl) ctrl.abort(); }, ms||20000);
+  return fetch(url, opciones).then(function(r){
+    return r.text().then(function(txt){
+      clearTimeout(timer);
+      return { status:r.status, texto:txt };
+    });
+  }, function(err){
+    clearTimeout(timer);
+    throw err;
+  });
 }
 
-// Guarda un movimiento con estrategia robusta:
+// Parseo tolerante: si el servidor devolvió HTML (login, error temporal de
+// Google, etc.) no revienta con "Unexpected token '<'". Lanza un error claro.
+function parsearRespuesta(resp){
+  var txt = (resp && resp.texto || "").trim();
+  if(txt === ""){
+    throw new Error("El servidor no devolvió datos (respuesta vacía).");
+  }
+  if(txt.charAt(0) === "<"){
+    // Página HTML en vez de JSON: casi siempre error transitorio de Google
+    throw new Error("El servidor respondió con una página en vez de datos. Reintentando...");
+  }
+  var json;
+  try { json = JSON.parse(txt); }
+  catch(e){ throw new Error("Respuesta no válida del servidor."); }
+  if(!json.ok) throw new Error(json.error || "Error en el servidor");
+  return json;
+}
+
+// Llamada base con timeout, parseo tolerante y reintentos automáticos.
+// intentos = número total de intentos (por defecto 3).
+function api(action, data, usePost, intentos){
+  intentos = intentos || 3;
+  var body = JSON.stringify({ action:action, data:data||null });
+  var url, opciones;
+  if(usePost){
+    // Sin headers personalizados: "simple request", evita el preflight CORS.
+    url = scriptUrl; opciones = { method:"POST", body:body };
+  } else {
+    url = scriptUrl + "?payload=" + encodeURIComponent(body); opciones = { method:"GET" };
+  }
+
+  function intentar(restantes){
+    return fetchConTimeout(url, opciones, 20000)
+      .then(parsearRespuesta)
+      .catch(function(err){
+        if(restantes > 1){
+          // Espera breve incremental antes de reintentar (0.8s, 1.6s...)
+          var espera = 800 * (intentos - restantes + 1);
+          return new Promise(function(res){ setTimeout(res, espera); })
+            .then(function(){ return intentar(restantes - 1); });
+        }
+        throw err;
+      });
+  }
+  return intentar(intentos);
+}
+
+// Guarda un registro de forma idempotente y verificada.
+//  - accion: "addMovimiento" / "addOrden" / "addArqueo"
+//  - registro: objeto con .id
+//  - opciones.tipo: "movimiento" | "orden" | "arqueo" (para verificar en getData)
+//  - opciones.post: si debe intentarse por POST (firmas grandes)
+//  - opciones.sinFirmas: función que devuelve una copia sin firmas (fallback GET)
+// El backend deduplica por id, así que reintentar NUNCA duplica.
+function guardarVerificado(accion, registro, opciones){
+  opciones = opciones || {};
+  var intentoPrincipal = opciones.post
+    ? api(accion, registro, true).catch(function(errPost){
+        // POST falló: si hay versión sin firmas, intentar por GET
+        if(opciones.sinFirmas){
+          return api(accion, opciones.sinFirmas(), false).then(function(res){
+            res._firmasSoloLocal = true; res._firmaSoloLocal = true; return res;
+          });
+        }
+        throw errPost;
+      })
+    : api(accion, registro, false);
+
+  return intentoPrincipal.catch(function(err){
+    // Último recurso: verificar si, a pesar del error, el registro SÍ se guardó.
+    return existeEnServidor(opciones.tipo, registro.id).then(function(existe){
+      if(existe) return { ok:true, _verificado:true };
+      throw err; // realmente no se guardó
+    });
+  });
+}
+
+// Consulta al servidor si un id ya existe (recargando getData).
+function existeEnServidor(tipo, id){
+  if(!tipo || !id) return Promise.resolve(false);
+  return api("getData", null, false, 2).then(function(res){
+    var lista = tipo==="orden" ? res.ordenes
+              : tipo==="arqueo" ? res.arqueos
+              : res.movimientos;
+    if(!lista) return false;
+    var hay = lista.some(function(x){ return String(x.id)===String(id); });
+    if(hay){
+      // Sincronizar el estado local con lo que hay en el servidor
+      if(tipo==="orden")  state.ordenes     = res.ordenes||[];
+      else if(tipo==="arqueo") state.arqueos = res.arqueos||[];
+      else state.movimientos = res.movimientos||[];
+    }
+    return hay;
+  }).catch(function(){ return false; });
+}
+
+// Guarda un movimiento con estrategia robusta e idempotente:
 // 1) intenta POST (soporta firmas grandes)
-// 2) si el POST falla (CORS u otro), reintenta por GET SIN las firmas,
-//    para que el movimiento siempre quede guardado. Las firmas permanecen
-//    en el respaldo local del dispositivo.
+// 2) si el POST falla, reintenta por GET SIN firmas (quedan en respaldo local)
+// 3) si aun así hay error, verifica en el servidor si ya se guardó (por id)
+// El backend deduplica por id, así que reintentar nunca duplica.
 function apiGuardarMovimiento(accion, mov){
   var llevaFirmas = !!(mov.firmaEntrega || mov.firmaRecibe);
   if(!llevaFirmas){
-    return api(accion, mov, false); // sin firmas: GET directo
+    // Sin firmas: GET directo, con verificación por id si falla
+    return guardarVerificado(accion, mov, { tipo:"movimiento", post:false });
   }
-  return api(accion, mov, true).catch(function(errPost){
-    // Fallback: guardar sin firmas por GET
-    var movSinFirmas = Object.assign({}, mov, { firmaEntrega:"", firmaRecibe:"" });
-    return api(accion, movSinFirmas, false).then(function(res){
-      res._firmasSoloLocal = true; // señal para avisar al usuario
-      return res;
-    });
+  return guardarVerificado(accion, mov, {
+    tipo:"movimiento",
+    post:true,
+    sinFirmas:function(){ return Object.assign({}, mov, { firmaEntrega:"", firmaRecibe:"" }); }
   });
 }
 
@@ -2362,6 +2459,8 @@ document.getElementById("movimientoForm").addEventListener("submit",function(e){
     var ordVinculada=ordenParaRegistrar; // capturar antes de cerrar
     setSyncState("syncing","Guardando...");
     apiGuardarMovimiento("addMovimiento",mov).then(function(res){
+      // Evitar duplicado en memoria si la verificación ya sincronizó desde el servidor
+      state.movimientos=state.movimientos.filter(function(m){ return String(m.id)!==String(nid); });
       state.movimientos.push(mov); closeModal(); renderAll();
       setSyncState("ok", res._firmasSoloLocal?"Guardado (firmas solo en este equipo)":"Movimiento guardado");
       // Si venía de registrar una orden, marcarla como registrada
@@ -2802,10 +2901,12 @@ document.getElementById("arqGuardarBtn").addEventListener("click",function(){
   btn.disabled=true; btn.textContent="Guardando...";
   setSyncState("syncing","Guardando arqueo...");
 
-  // Paso 1: guardar el arqueo (datos) por GET — rápido y sin problemas de tamaño
-  api("addArqueo",record).then(function(){
+  // Paso 1: guardar el arqueo (datos) por GET — idempotente y verificado
+  guardarVerificado("addArqueo", record, { tipo:"arqueo", post:false }).then(function(){
     // El registro en memoria sí lleva las firmas para mostrarlas de inmediato
     var recordConFirmas=Object.assign({},record,{firmaResponsable:firmaR,firmaVerificador:firmaV});
+    // Evitar duplicado en memoria si la verificación ya lo agregó desde el servidor
+    state.arqueos = state.arqueos.filter(function(a){ return String(a.id)!==String(arqId); });
     state.arqueos.push(recordConFirmas);
     arqLimpiar();
     btn.disabled=false; btn.textContent="Guardar arqueo";
@@ -3094,13 +3195,18 @@ document.getElementById("firmarGuardarBtn").addEventListener("click",function(){
 // ===================== ÓRDENES DE COMPRA =====================
 // ================================================================
 
-// ---- Guardado robusto de órdenes (POST con firma, fallback GET sin firma) ----
+// ---- Guardado robusto de órdenes (idempotente, POST con firma, fallback GET) ----
 function apiGuardarOrden(accion, orden){
   var llevaFirma = !!orden.firmaAutoriza;
-  if(!llevaFirma){ return api(accion, orden, false); }
-  return api(accion, orden, true).catch(function(){
-    var sinFirma = Object.assign({}, orden, { firmaAutoriza:"" });
-    return api(accion, sinFirma, false).then(function(res){ res._firmaSoloLocal=true; return res; });
+  // Solo addOrden crea filas nuevas → verificar por id. updateOrden no duplica.
+  var tipoVerif = (accion==="addOrden") ? "orden" : null;
+  if(!llevaFirma){
+    return guardarVerificado(accion, orden, { tipo:tipoVerif, post:false });
+  }
+  return guardarVerificado(accion, orden, {
+    tipo:tipoVerif,
+    post:true,
+    sinFirmas:function(){ return Object.assign({}, orden, { firmaAutoriza:"" }); }
   });
 }
 
@@ -3233,6 +3339,7 @@ function ordGuardar(estado){
 
   setSyncState("syncing","Guardando orden...");
   apiGuardarOrden("addOrden",orden).then(function(res){
+    state.ordenes=state.ordenes.filter(function(x){ return String(x.id)!==String(orden.id); });
     state.ordenes.push(orden);
     ordLimpiarForm();
     setSyncState("ok", res._firmaSoloLocal?"Orden guardada (firma solo en este equipo)":"Orden guardada");
