@@ -160,6 +160,8 @@
   .status-badge svg{width:13px;height:13px;flex-shrink:0;}
   .status-badge.match{background:var(--success-bg);color:var(--success);}
   .status-badge.mismatch{background:var(--danger-bg);color:var(--danger);}
+  .status-badge.menos{background:var(--danger-bg);color:var(--danger);}
+  .status-badge.mas{background:var(--blue-bg);color:var(--blue-dark);}
   .status-badge.pending{background:var(--surface-2);color:var(--ink-faint);}
 
   /* ---- Inventario ---- */
@@ -173,6 +175,11 @@
   .pd-item .pd-desc{color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .pd-item .pd-desc small{color:var(--ink-faint);font-weight:600;}
   .pd-item .pd-monto{font-family:var(--font-mono);font-weight:600;color:var(--ink-soft);flex-shrink:0;}
+  .pd-grupo-head{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    margin:8px 0 3px;padding-top:6px;border-top:1px solid #E8D9B0;
+    font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--warn);}
+  .pd-grupo-head:first-child{margin-top:0;padding-top:0;border-top:none;}
+  .pd-grupo-total{font-family:var(--font-mono);font-size:12.5px;}
   .inventario-panel h2{font-family:var(--font-d);font-size:18px;font-weight:600;color:var(--blue-dark);margin:0 0 4px;}
   .inventario-subtitulo{font-size:12.5px;color:var(--ink-faint);margin:0 0 16px;}
   .inv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:10px;margin-bottom:14px;}
@@ -225,13 +232,35 @@
   }
   .fecha-movs{padding:10px 12px;display:flex;flex-direction:column;gap:8px;}
 
+  /* ---- Grupo por mes (contiene días) ---- */
+  .mes-group{border:1px solid var(--border);border-radius:12px;margin-bottom:14px;overflow:hidden;background:var(--surface);}
+  .mes-summary{list-style:none;cursor:pointer;padding:14px 16px;display:flex;align-items:center;gap:12px;
+    background:var(--blue-dark);color:#fff;}
+  .mes-summary::-webkit-details-marker{display:none;}
+  .mes-summary .fecha-chevron{color:rgba(255,255,255,.85);}
+  .mes-group[open] > .mes-summary .fecha-chevron{transform:rotate(90deg);}
+  .mes-titulo{font-family:var(--font-d);font-weight:600;font-size:16px;flex-shrink:0;}
+  .mes-resumen{margin-left:auto;display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}
+  .mes-resumen .fr-item{color:rgba(255,255,255,.7);}
+  .mes-resumen .fr-item.ing b{color:#7BE0A3;}
+  .mes-resumen .fr-item.eg b{color:#F5A9A0;}
+  .mes-dias{padding:12px;display:flex;flex-direction:column;gap:10px;}
+  .mes-dias .fecha-group{margin-bottom:0;}
+
   /* ---- Items movimiento ---- */
-  .mov-item{border:1px solid var(--border);border-radius:9px;overflow:hidden;}
-  .mov-clickable{display:flex;align-items:center;gap:10px;padding:11px 12px;cursor:pointer;transition:background .1s;}
-  .mov-clickable:hover{background:var(--surface-2);}
-  .mov-clickable:active{background:var(--border);}
+  .mov-item{border:1px solid var(--border);border-radius:9px;overflow:hidden;
+    display:flex;align-items:center;padding:11px 12px;gap:10px;transition:background .1s;}
+  .mov-item:hover{background:var(--surface-2);}
+  .mov-clickable{cursor:pointer;}
+  .mov-main.mov-clickable{flex:1;min-width:0;}
   .mov-chevron{color:var(--ink-faint);display:flex;align-items:center;flex-shrink:0;}
   .mov-chevron svg{width:16px;height:16px;}
+  /* Botón rápido: pasar pendiente a egreso */
+  .mov-pasar{flex-shrink:0;border:1px solid var(--ingreso);background:var(--ingreso-bg);color:var(--ingreso);
+    width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;
+    transition:background .12s;}
+  .mov-pasar:hover{background:var(--ingreso);color:#fff;}
+  .mov-pasar svg{width:15px;height:15px;}
   .firmas-mov-toggle{border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:14px;}
   .firmas-mov-toggle summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--blue);list-style:none;}
   .firmas-mov-toggle summary::-webkit-details-marker{display:none;}
@@ -1580,6 +1609,15 @@ function fmtFechaLarga(key){
   return dias[d.getDay()].charAt(0).toUpperCase()+dias[d.getDay()].slice(1)+" "+parseInt(p[2],10)+" "+meses[d.getMonth()]+" "+p[0];
 }
 function fmtHora(iso){ var d=parseFechaISO(iso); return pad(d.getHours())+":"+pad(d.getMinutes()); }
+// Clave de mes "YYYY-MM" a partir de una key de día "YYYY-MM-DD"
+function mesKeyDeDia(diaKey){ return diaKey.slice(0,7); }
+function mesKeyHoy(){ var d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1); }
+function fmtMesLargo(mesKey){
+  var p=mesKey.split("-");
+  var meses=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  var nombre=meses[parseInt(p[1],10)-1]+" "+p[0];
+  return (mesKey===mesKeyHoy()) ? nombre+" · Este mes" : nombre;
+}
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 
 // Evalúa una expresión aritmética simple (solo + - * / . y paréntesis).
@@ -1808,11 +1846,35 @@ function renderPendientesDetalle(total){
   if(lista.length===0){ panel.style.display="none"; return; }
   panel.style.display="block";
   document.getElementById("pdTotal").textContent=fmt(total);
-  document.getElementById("pdLista").innerHTML=lista.map(function(p){
-    return '<div class="pd-item">'+
-      '<span class="pd-desc">'+esc(p.descripcion)+' <small>('+p.origen+')</small></span>'+
-      '<span class="pd-monto">'+fmt(p.monto)+'</span></div>';
-  }).join("");
+
+  var normales=lista.filter(function(p){ return !p.esExterno; });
+  var externos=lista.filter(function(p){ return !!p.esExterno; });
+  var totalNorm=normales.reduce(function(s,p){ return s+(p.monto||0); },0);
+  var totalExt=externos.reduce(function(s,p){ return s+(p.monto||0); },0);
+
+  function filas(items){
+    return items.map(function(p){
+      return '<div class="pd-item">'+
+        '<span class="pd-desc">'+esc(p.descripcion)+' <small>('+p.origen+')</small></span>'+
+        '<span class="pd-monto">'+fmt(p.monto)+'</span></div>';
+    }).join("");
+  }
+  function grupo(titulo, items, subtotal){
+    if(!items.length) return "";
+    return '<div class="pd-grupo-head"><span>'+titulo+'</span><span class="pd-grupo-total">'+fmt(subtotal)+'</span></div>'+
+      filas(items);
+  }
+
+  // Si solo hay de un tipo, no mostrar encabezados de grupo (se ve igual que antes)
+  var html;
+  if(!externos.length){
+    html=filas(normales);
+  } else if(!normales.length){
+    html=grupo("Externos", externos, totalExt);
+  } else {
+    html=grupo("Normal", normales, totalNorm)+grupo("Externos", externos, totalExt);
+  }
+  document.getElementById("pdLista").innerHTML=html;
 }
 function renderStatusTarjeta(id, r, sujeto, nombre){
   var el=document.getElementById(id); if(!el) return;
@@ -1825,9 +1887,11 @@ function renderStatusTarjeta(id, r, sujeto, nombre){
     return;
   }
   var d=r.diff;
+  // d>0: el sujeto (flujo) tiene MÁS → alerta azul. d<0: tiene MENOS → alerta roja.
+  var clase = d>0 ? "mas" : "menos";
   var txt=(d>0?sujeto+" tiene "+fmt(Math.abs(d))+" más que "+nombre
              :sujeto+" tiene "+fmt(Math.abs(d))+" menos que "+nombre);
-  el.innerHTML='<span class="status-badge mismatch">'+ICONS.alert+' '+txt+'</span>';
+  el.innerHTML='<span class="status-badge '+clase+'">'+ICONS.alert+' '+txt+'</span>';
 }
 
 function renderInventario(){
@@ -1870,21 +1934,20 @@ function renderHistorialGroups(){
     return;
   }
 
-  // Agrupar por fecha (key)
+  // Agrupar por día
   var grupos={};
   movs.forEach(function(m){ var k=fechaKey(m.fecha); (grupos[k]=grupos[k]||[]).push(m); });
   var keys=Object.keys(grupos).sort(function(a,b){ return b<a?-1:(b>a?1:0); }); // desc
 
-  // Para saldo a fin de día: usar el último movimiento del día en orden cronológico
   var hoy=todayKey();
+  var mesActual=mesKeyHoy();
 
-  cont.innerHTML=keys.map(function(k){
+  // Construye el HTML de un día (details con sus movimientos)
+  function htmlDia(k){
     var lista=grupos[k].slice().sort(function(a,b){ return new Date(b.fecha)-new Date(a.fecha); });
     var ing=0,eg=0;
     grupos[k].forEach(function(m){ m.tipo==="ingreso"?ing+=m.monto:eg+=m.monto; });
     ing=round2(ing); eg=round2(eg);
-
-    // Saldo a fin de ese día = saldo del último movimiento cronológico del día
     var cronoAsc=grupos[k].slice().sort(function(a,b){ return new Date(a.fecha)-new Date(b.fecha); });
     var ultimoMov=cronoAsc[cronoAsc.length-1];
     var saldoFin=saldoMap[ultimoMov.id];
@@ -1904,21 +1967,27 @@ function renderHistorialGroups(){
       var saldoLinea = esBanco
         ? '<div class="mov-saldo">No afecta flujo</div>'
         : '<div class="mov-saldo">Saldo: '+(saldoRes!==undefined?fmt(saldoRes):"—")+'</div>';
-      return '<div class="mov-item '+claseTipo+(esPend?" pendiente":"")+' mov-clickable" data-detalle="'+m.id+'">'+
-        '<div class="mov-icon">'+icono+'</div>'+
-        '<div class="mov-main">'+
+      // Botón rápido: convertir pendiente de caja a egreso normal (solo pendientes de caja)
+      var btnPasar = (m.esPendiente && !esBanco)
+        ? '<button type="button" class="mov-pasar" data-pasar="'+m.id+'" title="Pasar de pendiente a egreso">'+ICONS.check+'</button>'
+        : '';
+      return '<div class="mov-item '+claseTipo+(esPend?" pendiente":"")+'">'+
+        '<div class="mov-icon mov-clickable" data-detalle="'+m.id+'">'+icono+'</div>'+
+        '<div class="mov-main mov-clickable" data-detalle="'+m.id+'">'+
           '<div class="mov-desc">'+esc(m.descripcion)+badgePend+badgeCambio+'</div>'+
           '<div class="mov-meta">'+esc(m.responsable)+' · '+fmtHora(m.fecha)+'</div>'+
         '</div>'+
-        '<div class="mov-right">'+
+        '<div class="mov-right mov-clickable" data-detalle="'+m.id+'">'+
           '<div class="mov-amount">'+signo+fmt(m.monto)+'</div>'+
           saldoLinea+
         '</div>'+
-        '<div class="mov-chevron">'+ICONS.chevronR+'</div>'+
+        btnPasar+
+        '<div class="mov-chevron mov-clickable" data-detalle="'+m.id+'">'+ICONS.chevronR+'</div>'+
       '</div>';
     }).join("");
 
-    var abierto=(k===hoy)?" open":"";
+    var hayFiltroDia=(filtroTipo!=="todos")||(searchQuery.trim()!=="");
+    var abierto=(k===hoy || hayFiltroDia)?" open":"";
     return '<details class="fecha-group"'+abierto+'>'+
       '<summary>'+ICONS.chevron+
         '<span class="fecha-titulo">'+fmtFechaLarga(k)+'</span>'+
@@ -1929,6 +1998,38 @@ function renderHistorialGroups(){
         '</div>'+
       '</summary>'+
       '<div class="fecha-movs">'+movsHtml+'</div>'+
+    '</details>';
+  }
+
+  // Agrupar los días por mes, manteniendo el orden descendente
+  var meses=[];
+  var mesIndex={};
+  keys.forEach(function(k){
+    var mk=mesKeyDeDia(k);
+    if(mesIndex[mk]===undefined){ mesIndex[mk]=meses.length; meses.push({mes:mk, dias:[]}); }
+    meses[mesIndex[mk]].dias.push(k);
+  });
+
+  cont.innerHTML=meses.map(function(g){
+    // Totales del mes
+    var ingM=0,egM=0;
+    g.dias.forEach(function(k){
+      grupos[k].forEach(function(m){ m.tipo==="ingreso"?ingM+=m.monto:egM+=m.monto; });
+    });
+    ingM=round2(ingM); egM=round2(egM);
+    var diasHtml=g.dias.map(htmlDia).join("");
+    // Expandir el mes actual siempre; si hay filtro o búsqueda activa, expandir todos
+    var hayFiltro=(filtroTipo!=="todos")||(searchQuery.trim()!=="");
+    var abiertoMes=(g.mes===mesActual || hayFiltro)?" open":"";
+    return '<details class="mes-group"'+abiertoMes+'>'+
+      '<summary class="mes-summary">'+ICONS.chevron+
+        '<span class="mes-titulo">'+fmtMesLargo(g.mes)+'</span>'+
+        '<div class="mes-resumen">'+
+          '<span class="fr-item ing">Ing.<b>'+fmt(ingM)+'</b></span>'+
+          '<span class="fr-item eg">Egr.<b>'+fmt(egM)+'</b></span>'+
+        '</div>'+
+      '</summary>'+
+      '<div class="mes-dias">'+diasHtml+'</div>'+
     '</details>';
   }).join("");
 }
@@ -2197,9 +2298,10 @@ function ejecutarSugerencia(silencioso){
       var r=evalExpr(objInput.value);
       if(r!==null && String(objInput.value).trim()!=="") objInput.value=round2(r);
       actualizarMatchIndicator();
-      // Auto-sugerir al terminar de escribir el monto en un EGRESO (con billetes).
-      // No borra lo que el usuario ya tenga: solo rellena la distribución sugerida.
-      if(selectedTipo==="egreso" && leerMontoObjetivo()!==null && readDenoms().total===0){
+      // Auto-sugerir al terminar de escribir el monto en un EGRESO o pendiente de
+      // caja (ambos con billetes). No borra lo que el usuario ya tenga capturado.
+      var autoSug = (selectedTipo==="egreso") || (selectedTipo==="pendiente" && selectedOrigen==="caja");
+      if(autoSug && leerMontoObjetivo()!==null && readDenoms().total===0){
         ejecutarSugerencia(true);
       }
     });
@@ -2433,12 +2535,17 @@ function actualizarUIMovimiento(){
   document.getElementById("cambioField").style.display = esIngreso ? "block":"none";
   if(esIngreso) ordRenderCambioLista();
 
-  // Monto objetivo: OBLIGATORIO en egreso (para sugerir billetes). Ajustar etiqueta.
+  // Monto objetivo: OBLIGATORIO en egreso y en pendiente de caja. Ajustar etiqueta.
   var lblObj=document.querySelector('#montoObjetivoField label');
   if(lblObj){
-    lblObj.innerHTML = esEgreso
-      ? 'Monto del egreso <span style="color:var(--egreso);">*</span>'
-      : 'Monto objetivo (opcional)';
+    var esPendCaja = esPend && selectedOrigen==="caja";
+    if(esEgreso){
+      lblObj.innerHTML='Monto del egreso <span style="color:var(--egreso);">*</span>';
+    } else if(esPendCaja){
+      lblObj.innerHTML='Monto del efectivo pendiente <span style="color:var(--warn);">*</span>';
+    } else {
+      lblObj.innerHTML='Monto objetivo (opcional)';
+    }
   }
 }
 
@@ -2587,17 +2694,20 @@ document.getElementById("movimientoForm").addEventListener("submit",function(e){
   } else {
     if(monto<=0){ errEl.textContent="Ingresa al menos una cantidad de billetes."; errEl.style.display="block"; return; }
   }
-  // Egreso: el monto objetivo es obligatorio y debe coincidir con los billetes capturados
-  if(selectedTipo==="egreso"){
+  // Egreso o pendiente de caja: el monto objetivo es obligatorio y debe coincidir
+  // con los billetes capturados (ambos usan billetes de la caja).
+  var exigeMonto = (selectedTipo==="egreso") || (esPend && selectedOrigen==="caja");
+  if(exigeMonto){
+    var etiquetaTipo = (selectedTipo==="egreso") ? "del egreso" : "del efectivo pendiente";
     var objetivoEg=leerMontoObjetivo();
     if(objetivoEg===null){
-      errEl.textContent="Ingresa el monto del egreso (arriba) para poder registrar y sugerir billetes.";
+      errEl.textContent="Ingresa el monto "+etiquetaTipo+" (arriba) para poder registrar y sugerir billetes.";
       errEl.style.display="block";
       var moi=document.getElementById("montoObjetivoInput"); if(moi) moi.focus();
       return;
     }
     if(Math.abs(round2(monto-objetivoEg))>=0.005){
-      errEl.textContent="Los billetes capturados ("+fmt(monto)+") no coinciden con el monto del egreso ("+fmt(objetivoEg)+"). Ajusta las denominaciones o el monto.";
+      errEl.textContent="Los billetes capturados ("+fmt(monto)+") no coinciden con el monto "+etiquetaTipo+" ("+fmt(objetivoEg)+"). Ajusta las denominaciones o el monto.";
       errEl.style.display="block";
       return;
     }
@@ -2688,9 +2798,42 @@ function marcarOrdenRegistrada(ordenId, movId){
 // Editar / Eliminar desde historial
 // ================================================================
 document.getElementById("historialGroups").addEventListener("click",function(e){
+  // Botón rápido: pasar pendiente de caja a egreso normal (tiene prioridad)
+  var btnPasar=e.target.closest("[data-pasar]");
+  if(btnPasar){
+    e.stopPropagation();
+    pasarPendienteAEgreso(btnPasar.getAttribute("data-pasar"));
+    return;
+  }
   var row=e.target.closest(".mov-clickable");
   if(row){ abrirDetalleMovimiento(row.getAttribute("data-detalle")); }
 });
+
+// Convierte un movimiento pendiente de caja en egreso normal (quita el flag)
+function pasarPendienteAEgreso(id){
+  var m=state.movimientos.find(function(x){ return x.id===id; });
+  if(!m){ return; }
+  if(!m.esPendiente || m.tipo==="pendiente_banco"){
+    alert("Solo se pueden convertir pendientes de caja."); return;
+  }
+  if(!confirm('¿Pasar este movimiento de "efectivo pendiente" a egreso normal?\n\n"'+
+      (m.descripcion||"(sin descripción)")+'" · '+fmt(m.monto)+
+      '\n\nDejará de contar como efectivo pendiente.')) return;
+
+  var actualizado=Object.assign({}, m, { esPendiente:false, esExterno:false });
+  // Optimista: actualizar en memoria y refrescar
+  state.movimientos=state.movimientos.map(function(x){ return x.id===id?actualizado:x; });
+  renderAll();
+  setSyncState("syncing","Convirtiendo a egreso...");
+  apiGuardarMovimiento("updateMovimiento",actualizado).then(function(){
+    setSyncState("ok","Movimiento convertido a egreso");
+  }).catch(function(err){
+    // Revertir si falla
+    state.movimientos=state.movimientos.map(function(x){ return x.id===id?m:x; });
+    renderAll();
+    setSyncState("err"); showError("No se pudo convertir: "+err.message);
+  });
+}
 
 // ================================================================
 // Modal detalle de movimiento
