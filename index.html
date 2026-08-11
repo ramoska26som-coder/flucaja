@@ -152,6 +152,8 @@
   .pend-display{font-family:var(--font-mono);font-size:18px;font-weight:700;color:var(--warn);padding:4px 0;}
   .pend-badge{display:inline-block;margin-left:8px;font-size:10.5px;font-weight:700;
     background:var(--warn-bg);color:var(--warn);padding:2px 7px;border-radius:999px;vertical-align:middle;}
+  .cambio-badge{display:inline-block;margin-left:6px;font-size:10.5px;font-weight:700;
+    background:var(--ingreso-bg);color:var(--ingreso);padding:2px 7px;border-radius:999px;vertical-align:middle;}
   .hint{font-size:11px;color:var(--ink-faint);margin:6px 0 0;line-height:1.35;}
   .status-badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;
     padding:4px 9px;border-radius:999px;margin-top:8px;}
@@ -258,6 +260,10 @@
   .mov-amount{font-family:var(--font-mono);font-weight:700;font-size:14.5px;white-space:nowrap;}
   .mov-item.ingreso .mov-amount{color:var(--ingreso);}
   .mov-item.egreso .mov-amount{color:var(--egreso);}
+  /* Movimiento marcado como efectivo pendiente: tarjeta amarilla */
+  .mov-item.pendiente{background:var(--warn-bg);border-color:#E8D9B0;}
+  .mov-item.pendiente .mov-icon{background:#EBD9AE;color:var(--warn);}
+  .mov-item.pendiente .mov-amount{color:var(--warn);}
   .mov-saldo{font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);white-space:nowrap;margin-top:2px;}
   .mov-detail{padding:0 12px 12px 52px;border-top:1px dashed var(--border);}
   .mov-detail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px;margin:10px 0;}
@@ -458,6 +464,32 @@
   .dif-ok{background:var(--success-bg);color:var(--success);}
   .dif-bad{background:var(--danger-bg);color:var(--danger);}
   .dif-warn{background:var(--warn-bg);color:var(--warn);}
+  .dif-azul{background:var(--blue-bg);color:var(--blue-dark);}
+  .check-row{display:flex;align-items:flex-start;gap:9px;font-size:13.5px;color:var(--ink);cursor:pointer;line-height:1.4;}
+  .check-row input[type=checkbox]{width:18px;height:18px;margin-top:1px;flex-shrink:0;accent-color:var(--blue);cursor:pointer;}
+  .cambio-lista{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;
+    border:1px solid var(--border);border-radius:8px;padding:8px;background:var(--surface-2);}
+  .cambio-op{display:flex;align-items:center;gap:9px;padding:8px 10px;background:var(--surface);
+    border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:13px;}
+  .cambio-op:hover{border-color:var(--blue);}
+  .cambio-op input{width:17px;height:17px;flex-shrink:0;accent-color:var(--blue);cursor:pointer;}
+  .cambio-op .co-main{flex:1;min-width:0;}
+  .cambio-op .co-desc{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cambio-op .co-meta{font-size:11.5px;color:var(--ink-faint);}
+  .cambio-op .co-monto{font-family:var(--font-mono);font-weight:700;color:var(--egreso);font-size:12.5px;white-space:nowrap;}
+  .cambio-vacio{font-size:12.5px;color:var(--ink-faint);text-align:center;padding:10px;}
+  .pend-total-general{display:flex;justify-content:space-between;align-items:center;
+    background:var(--blue-dark);color:#fff;border-radius:8px;padding:10px 14px;margin-bottom:6px;
+    font-size:13.5px;font-weight:600;}
+  .pend-total-general b{font-family:var(--font-mono);font-size:16px;}
+  .cambio-info{background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:11px 13px;margin-bottom:14px;}
+  .cambio-info .ci-titulo{font-size:12px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;}
+  .cambio-info .ci-lista{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;}
+  .cambio-info .ci-lista li{font-size:13px;padding:4px 0;border-bottom:1px dashed var(--border);}
+  .cambio-info .ci-lista li:last-child{border-bottom:none;}
+  .cambio-info .ci-lista li[data-ir-mov]:hover{color:var(--blue);}
+  .cambio-info .ci-neto{margin-top:8px;font-size:13px;font-weight:600;color:var(--ink);text-align:right;}
+  .cambio-info .ci-neto b{font-family:var(--font-mono);color:var(--egreso);}
   .firmas{display:flex;gap:16px;flex-wrap:wrap;}
   .firma-box{flex:1;min-width:220px;}
   .firma-box label{font-size:12.5px;font-weight:600;color:var(--ink-soft);}
@@ -1070,6 +1102,26 @@
         </div>
         <textarea id="descripcionInput" placeholder="Motivo del movimiento"></textarea>
       </div>
+
+      <!-- Check: efectivo pendiente externo (visible solo en modo pendiente) -->
+      <div class="field" id="externoField" style="display:none;">
+        <label class="check-row">
+          <input type="checkbox" id="esExternoCheck">
+          <span>Es un pendiente <b>externo</b> (se agrupa aparte en el arqueo)</span>
+        </label>
+      </div>
+
+      <!-- Vínculo de cambio/vuelto (visible solo en ingreso) -->
+      <div class="field" id="cambioField" style="display:none;">
+        <label class="check-row">
+          <input type="checkbox" id="esCambioCheck">
+          <span>Este ingreso es el <b>cambio/vuelto</b> de un desembolso</span>
+        </label>
+        <div id="cambioSelector" style="display:none;margin-top:8px;">
+          <p class="hint" style="margin:0 0 6px;">Marca a qué egreso(s) corresponde este cambio:</p>
+          <div id="cambioLista" class="cambio-lista"></div>
+        </div>
+      </div>
       <div class="field" id="montoObjetivoField">
         <label for="montoObjetivoInput">Monto objetivo (opcional)</label>
         <div class="objetivo-row">
@@ -1208,7 +1260,7 @@ var URL_KEY = "flujoCajaScriptUrl";
 // ================================================================
 // CONFIGURACIÓN — PEGA AQUÍ LA URL DE TU APPS SCRIPT WEB APP
 // ================================================================
-var URL_FIJA = "https://script.google.com/macros/s/AKfycbyndycY28ue2aFjW1_xDgHoA4cJwmOCXltP7ht7DEfE94sHh1Y_hVUdl0A0nGgnSleS1g/exec";
+var URL_FIJA = "";
 
 var ICONS = {
   trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
@@ -1612,6 +1664,7 @@ function getPendientesList(){
     return {
       descripcion: m.descripcion||"(sin descripción)",
       origen: m.tipo==="pendiente_banco" ? "banco" : "caja",
+      esExterno: !!m.esExterno,
       monto: m.monto,
       fecha: m.fecha
     };
@@ -1843,15 +1896,18 @@ function renderHistorialGroups(){
       var icono=esIngreso?ICONS.ing:ICONS.eg;
       var claseTipo=esIngreso?"ingreso":"egreso";
       var saldoRes=saldoMap[m.id];
-      var badgePend = (esBanco||m.esPendiente)
-        ? '<span class="pend-badge">Pendiente'+(esBanco?" · banco":" · caja")+'</span>' : '';
+      var esPend=(esBanco||m.esPendiente);
+      var badgePend = esPend
+        ? '<span class="pend-badge">Pendiente'+(esBanco?" · banco":" · caja")+(m.esExterno?" · externo":"")+'</span>' : '';
+      var badgeCambio = (m.cambioDe && m.cambioDe.length)
+        ? '<span class="cambio-badge">↩ Cambio</span>' : '';
       var saldoLinea = esBanco
         ? '<div class="mov-saldo">No afecta flujo</div>'
         : '<div class="mov-saldo">Saldo: '+(saldoRes!==undefined?fmt(saldoRes):"—")+'</div>';
-      return '<div class="mov-item '+claseTipo+' mov-clickable" data-detalle="'+m.id+'">'+
+      return '<div class="mov-item '+claseTipo+(esPend?" pendiente":"")+' mov-clickable" data-detalle="'+m.id+'">'+
         '<div class="mov-icon">'+icono+'</div>'+
         '<div class="mov-main">'+
-          '<div class="mov-desc">'+esc(m.descripcion)+badgePend+'</div>'+
+          '<div class="mov-desc">'+esc(m.descripcion)+badgePend+badgeCambio+'</div>'+
           '<div class="mov-meta">'+esc(m.responsable)+' · '+fmtHora(m.fecha)+'</div>'+
         '</div>'+
         '<div class="mov-right">'+
@@ -2093,6 +2149,46 @@ function buildDenomGrid(){
 }
 
 // ---- Monto objetivo + sugerencia de denominaciones ----
+// Ejecuta la sugerencia de billetes para el monto objetivo actual.
+// silencioso=true evita mostrar el aviso de "escribe un monto" cuando está vacío.
+function ejecutarSugerencia(silencioso){
+  var aviso=document.getElementById("sugerenciaAviso");
+  aviso.style.display="none";
+  var objetivo=leerMontoObjetivo();
+  if(objetivo===null){
+    if(!silencioso){
+      aviso.style.display="block";
+      aviso.textContent="Escribe primero un monto válido.";
+      document.getElementById("montoObjetivoInput").focus();
+    }
+    return;
+  }
+  if(Math.round(objetivo)!==objetivo){
+    aviso.style.display="block";
+    aviso.textContent="El monto tiene centavos; se sugieren billetes hasta el entero más cercano.";
+  }
+  // Para egresos de caja limitamos por el inventario disponible;
+  // para ingresos no hay límite (entran billetes nuevos).
+  var esEgresoCaja = (selectedTipo==="egreso") || (selectedTipo==="pendiente" && selectedOrigen==="caja");
+  var disponible = esEgresoCaja ? calcInventario() : null;
+
+  var res=sugerirDenoms(objetivo, disponible);
+
+  if(res.restante>0 && disponible){
+    var resLibre=sugerirDenoms(objetivo, null);
+    aplicarSugerencia(resLibre.denoms);
+    aviso.style.display="block";
+    aviso.innerHTML="⚠ La caja no tiene billetes suficientes para dar exactamente "+fmt(objetivo)+
+      ". Se muestra un desglose ideal; ajústalo manualmente según el efectivo disponible.";
+  } else {
+    aplicarSugerencia(res.denoms);
+    if(res.restante>0){
+      aviso.style.display="block";
+      aviso.textContent="No se pudo completar exactamente; quedó un resto de L "+res.restante+" (denominación mínima L 1).";
+    }
+  }
+}
+
 (function(){
   var objInput=document.getElementById("montoObjetivoInput");
   if(objInput){
@@ -2101,49 +2197,62 @@ function buildDenomGrid(){
       var r=evalExpr(objInput.value);
       if(r!==null && String(objInput.value).trim()!=="") objInput.value=round2(r);
       actualizarMatchIndicator();
+      // Auto-sugerir al terminar de escribir el monto en un EGRESO (con billetes).
+      // No borra lo que el usuario ya tenga: solo rellena la distribución sugerida.
+      if(selectedTipo==="egreso" && leerMontoObjetivo()!==null && readDenoms().total===0){
+        ejecutarSugerencia(true);
+      }
     });
   }
   var sugBtn=document.getElementById("sugerirDenomBtn");
   if(sugBtn){
-    sugBtn.addEventListener("click", function(){
-      var aviso=document.getElementById("sugerenciaAviso");
-      aviso.style.display="none";
-      var objetivo=leerMontoObjetivo();
-      if(objetivo===null){
-        aviso.style.display="block";
-        aviso.textContent="Escribe primero un monto objetivo válido.";
-        document.getElementById("montoObjetivoInput").focus();
-        return;
-      }
-      if(Math.round(objetivo)!==objetivo){
-        // Hay centavos: los billetes no pueden representarlos exactamente
-        aviso.style.display="block";
-        aviso.textContent="El monto tiene centavos; se sugieren billetes hasta el entero más cercano.";
-      }
-      // Para egresos de caja limitamos por el inventario disponible;
-      // para ingresos no hay límite (entran billetes nuevos).
-      var esEgresoCaja = (selectedTipo==="egreso") || (selectedTipo==="pendiente" && selectedOrigen==="caja");
-      var disponible = esEgresoCaja ? calcInventario() : null;
-
-      var res=sugerirDenoms(objetivo, disponible);
-
-      if(res.restante>0 && disponible){
-        // El inventario no alcanza para cubrir el objetivo exacto: reintentar sin límite
-        var resLibre=sugerirDenoms(objetivo, null);
-        aplicarSugerencia(resLibre.denoms);
-        aviso.style.display="block";
-        aviso.innerHTML="⚠ La caja no tiene billetes suficientes para dar exactamente "+fmt(objetivo)+
-          ". Se muestra un desglose ideal; ajusta manualmente según el efectivo disponible.";
-      } else {
-        aplicarSugerencia(res.denoms);
-        if(res.restante>0){
-          aviso.style.display="block";
-          aviso.textContent="No se pudo completar exactamente; quedó un resto de L "+res.restante+" (denominación mínima L 1).";
-        }
-      }
-    });
+    sugBtn.addEventListener("click", function(){ ejecutarSugerencia(false); });
   }
 })();
+
+// ---- Vínculo de cambio/vuelto: selección de egresos ligados ----
+var cambioSeleccion = []; // IDs de egresos a los que este ingreso es cambio
+
+document.getElementById("esCambioCheck").addEventListener("change",function(){
+  document.getElementById("cambioSelector").style.display=this.checked?"block":"none";
+  if(this.checked) ordRenderCambioLista();
+  else cambioSeleccion=[];
+});
+
+// Renderiza la lista de egresos candidatos a los que ligar el cambio.
+// Muestra egresos (incluye pendientes de caja) ordenados por fecha desc.
+function ordRenderCambioLista(){
+  var cont=document.getElementById("cambioLista"); if(!cont) return;
+  var candidatos=state.movimientos.filter(function(m){
+    // Egresos reales de caja o pendientes de caja (los que implican desembolso)
+    return (m.tipo==="egreso") && m.id!==editingId;
+  }).sort(function(a,b){ return new Date(b.fecha)-new Date(a.fecha); });
+
+  if(!candidatos.length){
+    cont.innerHTML='<div class="cambio-vacio">No hay egresos registrados para ligar.</div>';
+    return;
+  }
+  cont.innerHTML=candidatos.slice(0,40).map(function(m){
+    var checked=cambioSeleccion.indexOf(m.id)!==-1?"checked":"";
+    var d=parseFechaISO(m.fecha);
+    var fh=pad(d.getDate())+"/"+pad(d.getMonth()+1)+" "+pad(d.getHours())+":"+pad(d.getMinutes());
+    return '<label class="cambio-op">'+
+      '<input type="checkbox" data-cambio-id="'+m.id+'" '+checked+'>'+
+      '<div class="co-main">'+
+        '<div class="co-desc">'+esc(m.descripcion||"(sin descripción)")+'</div>'+
+        '<div class="co-meta">'+esc(m.responsable||"")+' · '+fh+'</div>'+
+      '</div>'+
+      '<div class="co-monto">-'+fmt(m.monto)+'</div>'+
+    '</label>';
+  }).join("");
+  cont.querySelectorAll("[data-cambio-id]").forEach(function(chk){
+    chk.addEventListener("change",function(){
+      var id=chk.getAttribute("data-cambio-id");
+      if(chk.checked){ if(cambioSeleccion.indexOf(id)===-1) cambioSeleccion.push(id); }
+      else { cambioSeleccion=cambioSeleccion.filter(function(x){ return x!==id; }); }
+    });
+  });
+}
 
 function readDenoms(){
   var d={},total=0;
@@ -2227,6 +2336,11 @@ function clearForm(){
   var mo=document.getElementById("montoObjetivoInput"); if(mo) mo.value="";
   var mi=document.getElementById("matchIndicator"); if(mi) mi.style.display="none";
   var sa=document.getElementById("sugerenciaAviso"); if(sa) sa.style.display="none";
+  // Reset check externo y vínculo de cambio
+  var ext=document.getElementById("esExternoCheck"); if(ext) ext.checked=false;
+  var camChk=document.getElementById("esCambioCheck"); if(camChk) camChk.checked=false;
+  var camSel=document.getElementById("cambioSelector"); if(camSel) camSel.style.display="none";
+  cambioSeleccion=[];
   document.getElementById("formError").style.display="none";
   if(typeof limpiarFirmasMovCanvas==="function") limpiarFirmasMovCanvas();
   var tog=document.querySelector(".firmas-mov-toggle"); if(tog) tog.open=false;
@@ -2310,6 +2424,22 @@ function actualizarUIMovimiento(){
       ? "De caja: se registra como egreso con billetes y descuenta del inventario."
       : "De banco: solo el monto; no afecta el saldo del flujo ni los billetes.";
   }
+
+  // Check "externo": visible solo en modo pendiente
+  document.getElementById("externoField").style.display = esPend ? "block":"none";
+
+  // Vínculo de cambio: visible solo en ingreso
+  var esIngreso=selectedTipo==="ingreso";
+  document.getElementById("cambioField").style.display = esIngreso ? "block":"none";
+  if(esIngreso) ordRenderCambioLista();
+
+  // Monto objetivo: OBLIGATORIO en egreso (para sugerir billetes). Ajustar etiqueta.
+  var lblObj=document.querySelector('#montoObjetivoField label');
+  if(lblObj){
+    lblObj.innerHTML = esEgreso
+      ? 'Monto del egreso <span style="color:var(--egreso);">*</span>'
+      : 'Monto objetivo (opcional)';
+  }
 }
 
 document.querySelectorAll("#movimientoForm .tipo-btn").forEach(function(btn){
@@ -2376,6 +2506,15 @@ function openModalEdit(id){
     var inp=document.getElementById("dn_"+v),cant=mov.denominaciones[v]||0;
     inp.value=cant||""; document.getElementById("sb_"+v).textContent=fmt(cant*v);
   });
+  // Precargar monto objetivo con el monto del movimiento (para egresos es obligatorio)
+  var moEdit=document.getElementById("montoObjetivoInput");
+  if(moEdit) moEdit.value=(mov.tipo==="pendiente_banco")?"":mov.monto;
+  // Precargar check externo y vínculo de cambio
+  document.getElementById("esExternoCheck").checked=!!mov.esExterno;
+  var esCambio=!!(mov.cambioDe && mov.cambioDe.length);
+  document.getElementById("esCambioCheck").checked=esCambio;
+  cambioSeleccion=esCambio?mov.cambioDe.slice():[];
+  document.getElementById("cambioSelector").style.display=esCambio?"block":"none";
   updateMontoPreview();
   // Precargar firmas del movimiento si existen (local o caché; si no, del servidor)
   limpiarFirmasMovCanvas();
@@ -2448,7 +2587,29 @@ document.getElementById("movimientoForm").addEventListener("submit",function(e){
   } else {
     if(monto<=0){ errEl.textContent="Ingresa al menos una cantidad de billetes."; errEl.style.display="block"; return; }
   }
+  // Egreso: el monto objetivo es obligatorio y debe coincidir con los billetes capturados
+  if(selectedTipo==="egreso"){
+    var objetivoEg=leerMontoObjetivo();
+    if(objetivoEg===null){
+      errEl.textContent="Ingresa el monto del egreso (arriba) para poder registrar y sugerir billetes.";
+      errEl.style.display="block";
+      var moi=document.getElementById("montoObjetivoInput"); if(moi) moi.focus();
+      return;
+    }
+    if(Math.abs(round2(monto-objetivoEg))>=0.005){
+      errEl.textContent="Los billetes capturados ("+fmt(monto)+") no coinciden con el monto del egreso ("+fmt(objetivoEg)+"). Ajusta las denominaciones o el monto.";
+      errEl.style.display="block";
+      return;
+    }
+  }
   errEl.style.display="none";
+
+  // Flags nuevos: externo (solo en pendiente) y cambio ligado (solo en ingreso)
+  var esExterno = (selectedTipo==="pendiente") && document.getElementById("esExternoCheck").checked;
+  var cambioDe = [];
+  if(selectedTipo==="ingreso" && document.getElementById("esCambioCheck").checked){
+    cambioDe = cambioSeleccion.slice();
+  }
 
   var mostrarEntregado = (tipoReal==="egreso");
   var entregadoFinal = (mostrarEntregado && entregadoA) ? entregadoA : "";
@@ -2474,7 +2635,8 @@ document.getElementById("movimientoForm").addEventListener("submit",function(e){
     var movEd={ id:editingId, fecha:fechaISO, tipo:tipoReal,
       responsable:responsable, entregadoA:entregadoFinal,
       descripcion:descripcion, denominaciones:denoms, monto:monto,
-      firmaEntrega:fE, firmaRecibe:fR, esPendiente:esPendiente, origenPendiente:origenPend };
+      firmaEntrega:fE, firmaRecibe:fR, esPendiente:esPendiente, origenPendiente:origenPend,
+      esExterno:esExterno, cambioDe:cambioDe };
     guardarFirmaMovLocal(editingId, fE, fR);
     setSyncState("syncing","Actualizando...");
     apiGuardarMovimiento("updateMovimiento",movEd).then(function(res){
@@ -2490,7 +2652,8 @@ document.getElementById("movimientoForm").addEventListener("submit",function(e){
     var mov={ id:nid, fecha:fechaISO, tipo:tipoReal,
       responsable:responsable, entregadoA:entregadoFinal,
       descripcion:descripcion, denominaciones:denoms, monto:monto,
-      firmaEntrega:firmaE, firmaRecibe:firmaR2, esPendiente:esPendiente, origenPendiente:origenPend };
+      firmaEntrega:firmaE, firmaRecibe:firmaR2, esPendiente:esPendiente, origenPendiente:origenPend,
+      esExterno:esExterno, cambioDe:cambioDe };
     if(llevaFirmas) guardarFirmaMovLocal(nid, firmaE, firmaR2);
     var ordVinculada=ordenParaRegistrar; // capturar antes de cerrar
     setSyncState("syncing","Guardando...");
@@ -2568,10 +2731,39 @@ function abrirDetalleMovimiento(id){
   else if(m.esPendiente) tipoTxt="Efectivo pendiente (de caja)";
   else tipoTxt=esIngreso?"Ingreso":"Egreso";
 
+  // Sección de vínculo de cambio/vuelto
+  var cambioHtml="";
+  if(m.cambioDe && m.cambioDe.length){
+    // Este ingreso es cambio de uno o varios egresos
+    var ligados=m.cambioDe.map(function(eid){
+      var eg=state.movimientos.find(function(x){ return x.id===eid; });
+      if(!eg) return '<li style="color:var(--ink-faint);">(egreso eliminado)</li>';
+      var dd=parseFechaISO(eg.fecha);
+      return '<li data-ir-mov="'+eg.id+'" style="cursor:pointer;">'+esc(eg.descripcion||"(sin descripción)")+
+        ' · <b>'+fmt(eg.monto)+'</b> <span style="color:var(--ink-faint);">'+pad(dd.getDate())+"/"+pad(dd.getMonth()+1)+'</span></li>';
+    }).join("");
+    cambioHtml='<div class="cambio-info"><div class="ci-titulo">↩ Cambio/vuelto de:</div><ul class="ci-lista">'+ligados+'</ul></div>';
+  } else if(!esIngreso && !esBanco){
+    // Es un egreso: buscar ingresos de cambio que lo referencien
+    var cambios=state.movimientos.filter(function(x){
+      return x.cambioDe && x.cambioDe.indexOf(m.id)!==-1;
+    });
+    if(cambios.length){
+      var totalCambio=cambios.reduce(function(s,x){ return s+x.monto; },0);
+      var itemsC=cambios.map(function(x){
+        var dd=parseFechaISO(x.fecha);
+        return '<li data-ir-mov="'+x.id+'" style="cursor:pointer;">'+esc(x.descripcion||"(sin descripción)")+
+          ' · <b style="color:var(--ingreso);">+'+fmt(x.monto)+'</b> <span style="color:var(--ink-faint);">'+pad(dd.getDate())+"/"+pad(dd.getMonth()+1)+'</span></li>';
+      }).join("");
+      cambioHtml='<div class="cambio-info"><div class="ci-titulo">Cambios recibidos ('+fmt(totalCambio)+'):</div><ul class="ci-lista">'+itemsC+'</ul>'+
+        '<div class="ci-neto">Desembolso neto: <b>'+fmt(round2(m.monto-totalCambio))+'</b></div></div>';
+    }
+  }
+
   var html=''+
     '<div class="det-monto '+claseMonto+'">'+signo+fmt(m.monto)+'</div>'+
     '<div class="det-info-grid">'+
-      '<span class="k">Tipo</span><span class="v">'+tipoTxt+'</span>'+
+      '<span class="k">Tipo</span><span class="v">'+tipoTxt+(m.esExterno?" · externo":"")+'</span>'+
       '<span class="k">Descripción</span><span class="v">'+esc(m.descripcion)+'</span>'+
       '<span class="k">Responsable</span><span class="v">'+esc(m.responsable)+'</span>'+
       (m.entregadoA?'<span class="k">Entregado a</span><span class="v">'+esc(m.entregadoA)+'</span>':'')+
@@ -2580,6 +2772,7 @@ function abrirDetalleMovimiento(id){
         ? '<span class="k">Afecta flujo</span><span class="v">No (solo pendiente)</span>'
         : '<span class="k">Saldo resultante</span><span class="v">'+(saldoRes!==undefined?fmt(saldoRes):"—")+'</span>')+
     '</div>'+
+    cambioHtml+
     (esBanco ? '' :
       '<div style="font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;">Desglose de billetes</div>'+
       '<div class="mov-detail-grid">'+chips+'</div>')+
@@ -2587,6 +2780,11 @@ function abrirDetalleMovimiento(id){
 
   document.getElementById("detalleContenido").innerHTML=html;
   detalleOverlay.classList.add("open");
+
+  // Navegación entre movimientos ligados
+  document.querySelectorAll("#detalleContenido [data-ir-mov]").forEach(function(li){
+    li.addEventListener("click",function(){ abrirDetalleMovimiento(li.getAttribute("data-ir-mov")); });
+  });
 
   // Si el servidor tiene firmas que no están localmente, traerlas y pintarlas
   var faltaE=m.tieneFirmaEntrega && !firmaEntrega;
@@ -2845,9 +3043,9 @@ function arqRecalcDif(total){
   var dif=round2(total-teorico);
   var el=document.getElementById("arqDifValue");
   el.textContent=fmt(dif);
-  el.classList.remove("dif-ok","dif-bad","dif-warn");
+  el.classList.remove("dif-ok","dif-bad","dif-warn","dif-azul");
   if(Math.abs(dif)<0.005) el.classList.add("dif-ok");
-  else if(dif<0) el.classList.add("dif-bad"); else el.classList.add("dif-warn");
+  else if(dif<0) el.classList.add("dif-bad"); else el.classList.add("dif-azul");
   return dif;
 }
 
@@ -3147,15 +3345,31 @@ function arqAbrirDetalle(id){
   }
   var pendHtml="";
   if(pendLista && pendLista.length){
-    var filasP=pendLista.map(function(p){
-      return '<tr><td>'+esc(p.descripcion||"(sin descripción)")+' <span style="color:#8893AB;">('+(p.origen||"caja")+')</span></td>'+
-        '<td class="mono" style="text-align:right;">'+fmt(p.monto)+'</td></tr>';
-    }).join("");
-    var totalP=pendLista.reduce(function(s,p){ return s+(p.monto||0); },0);
+    var normales=pendLista.filter(function(p){ return !p.esExterno; });
+    var externos=pendLista.filter(function(p){ return !!p.esExterno; });
+    var totalGeneral=pendLista.reduce(function(s,p){ return s+(p.monto||0); },0);
+    var totalNorm=normales.reduce(function(s,p){ return s+(p.monto||0); },0);
+    var totalExt=externos.reduce(function(s,p){ return s+(p.monto||0); },0);
+
+    function filasPend(lista){
+      return lista.map(function(p){
+        return '<tr><td>'+esc(p.descripcion||"(sin descripción)")+' <span style="color:#8893AB;">('+(p.origen||"caja")+')</span></td>'+
+          '<td class="mono" style="text-align:right;">'+fmt(p.monto)+'</td></tr>';
+      }).join("");
+    }
+    function grupoTabla(titulo, lista, subtotal){
+      if(!lista.length) return "";
+      return '<div style="font-size:12.5px;font-weight:700;color:var(--ink-soft);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.03em;">'+titulo+'</div>'+
+        '<table class="arqueo-table"><thead><tr><th>Descripción</th><th style="text-align:right;">Monto</th></tr></thead>'+
+        '<tbody>'+filasPend(lista)+'</tbody>'+
+        '<tfoot><tr><td>Subtotal '+titulo.toLowerCase()+'</td><td class="mono" style="text-align:right;">'+fmt(subtotal)+'</td></tr></tfoot></table>';
+    }
+
     pendHtml='<h3 style="font-family:var(--font-d);font-size:15px;color:var(--blue-dark);margin:18px 0 6px;">Efectivos pendientes</h3>'+
-      '<table class="arqueo-table"><thead><tr><th>Descripción</th><th style="text-align:right;">Monto</th></tr></thead>'+
-      '<tbody>'+filasP+'</tbody>'+
-      '<tfoot><tr><td>Total pendientes</td><td class="mono" style="text-align:right;">'+fmt(totalP)+'</td></tr></tfoot></table>';
+      // Total general siempre arriba
+      '<div class="pend-total-general">Total general de pendientes<b>'+fmt(totalGeneral)+'</b></div>'+
+      grupoTabla("Normal", normales, totalNorm)+
+      grupoTabla("Externo", externos, totalExt);
   }
 
   document.getElementById("arqueoDetalleContenido").innerHTML=
@@ -3167,7 +3381,7 @@ function arqAbrirDetalle(id){
       '<div class="resumen-row"><label>Efectivo pendiente</label><span class="mono" style="color:#fff;">'+fmt(r.efectivoPendiente)+'</span></div>'+
       '<div class="resumen-row"><label>Teórico</label><span class="mono" style="color:#fff;">'+fmt(r.teorico)+'</span></div>'+
       '<div class="resumen-row"><label>Sistema</label><span class="mono" style="color:#fff;">'+fmt(r.sistema)+'</span></div>'+
-      '<div class="resumen-row"><label>Diferencia</label><span class="dif-value mono '+(Math.abs(r.diferencia)<0.005?"dif-ok":(r.diferencia<0?"dif-bad":"dif-warn"))+'">'+fmt(r.diferencia)+'</span></div>'+
+      '<div class="resumen-row"><label>Diferencia</label><span class="dif-value mono '+(Math.abs(r.diferencia)<0.005?"dif-ok":(r.diferencia<0?"dif-bad":"dif-azul"))+'">'+fmt(r.diferencia)+'</span></div>'+
     '</div>'+
     (r.notas?'<div class="notas-box">'+esc(r.notas)+'</div>':'')+
     pendHtml+
@@ -3678,10 +3892,11 @@ document.getElementById("ordRegistrarBtn").addEventListener("click",function(){
     document.getElementById("entregadoASelect").value=o.recibe;
   }
   document.getElementById("descripcionInput").value="Orden de compra: "+o.descripcion;
-  // Prellenar el monto objetivo con el monto de la orden para sugerir billetes
+  // Prellenar el monto objetivo con el monto de la orden y sugerir billetes
   var moInput=document.getElementById("montoObjetivoInput");
   if(moInput){ moInput.value=o.monto; }
   if(typeof actualizarMatchIndicator==="function") actualizarMatchIndicator();
+  if(typeof ejecutarSugerencia==="function") ejecutarSugerencia(true);
   var d=parseFechaISO(o.fecha);
   document.getElementById("movFecha").value=d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
   document.getElementById("movHora").value=pad(d.getHours())+":"+pad(d.getMinutes());
