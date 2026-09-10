@@ -145,7 +145,7 @@ function inicializarHojas(ss) {
   }
   // Migrar Arqueos si ya existe
   if (ss.getSheetByName('Arqueos')) {
-    asegurarColumnas(ss.getSheetByName('Arqueos'), ['pendientesLista']);
+    asegurarColumnas(ss.getSheetByName('Arqueos'), ['pendientesLista','excel']);
   }
 
   // Hoja Personas
@@ -184,14 +184,13 @@ function inicializarHojas(ss) {
   if (!ss.getSheetByName('Arqueos')) {
     var arq = ss.insertSheet('Arqueos');
     var h = ['id','fecha','hora','responsable','verificador','totalContado',
-             'efectivoPendiente','teorico','sistema','diferencia','notas',
+             'efectivoPendiente','teorico','sistema','excel','diferencia','notas',
              'denominaciones','firmaResponsable','firmaVerificador','creadoEn','pendientesLista'];
     arq.getRange(1, 1, 1, h.length).setValues([h]);
     arq.setFrozenRows(1);
     // Forzar texto plano en columnas que Sheets intentaría convertir a fecha/hora
-    // B=fecha, C=hora, O=creadoEn  (evita corrupción al leer desde otro dispositivo)
+    // B=fecha, C=hora, creadoEn  (evita corrupción al leer desde otro dispositivo)
     arq.getRange('B2:C').setNumberFormat('@');
-    arq.getRange('O2:O').setNumberFormat('@');
   }
 }
 
@@ -445,6 +444,7 @@ function getData(ss) {
         efectivoPendiente: Number(aobj.efectivoPendiente) || 0,
         teorico:           Number(aobj.teorico) || 0,
         sistema:           Number(aobj.sistema) || 0,
+        excel:             Number(aobj.excel) || 0,
         diferencia:        Number(aobj.diferencia) || 0,
         notas:             String(aobj.notas || ''),
         denominaciones:    denoms,
@@ -708,6 +708,7 @@ function addArqueo(ss, data) {
   v['efectivoPendiente'] = Number(data.efectivoPendiente) || 0;
   v['teorico'] = Number(data.teorico) || 0;
   v['sistema'] = Number(data.sistema) || 0;
+  v['excel'] = Number(data.excel) || 0;
   v['diferencia'] = Number(data.diferencia) || 0;
   v['notas'] = String(data.notas || '');
   v['denominaciones'] = JSON.stringify(data.denominaciones || []);

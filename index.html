@@ -175,6 +175,9 @@
   .pd-item .pd-desc{color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .pd-item .pd-desc small{color:var(--ink-faint);font-weight:600;}
   .pd-item .pd-monto{font-family:var(--font-mono);font-weight:600;color:var(--ink-soft);flex-shrink:0;}
+  .pd-clickable{cursor:pointer;border-radius:6px;padding:4px 6px;margin:0 -6px;transition:background .1s;}
+  .pd-clickable:hover{background:rgba(0,0,0,.05);}
+  .pd-clickable:active{background:rgba(0,0,0,.09);}
   .pd-grupo-head{display:flex;align-items:center;justify-content:space-between;gap:10px;
     margin:8px 0 3px;padding-top:6px;border-top:1px solid #E8D9B0;
     font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--warn);}
@@ -319,6 +322,26 @@
   .fab svg{width:26px;height:26px;}
   .fab:hover{background:#16294D;transform:scale(1.04);}
   .fab:active{transform:scale(.97);}
+  /* FAB secundario: cambio de efectivo */
+  .fab-cambio{position:fixed;right:24px;bottom:86px;width:48px;height:48px;border-radius:50%;
+    background:var(--surface);color:var(--blue-dark);border:1.5px solid var(--blue-dark);
+    box-shadow:0 6px 14px rgba(30,58,107,.22);display:none;align-items:center;justify-content:center;
+    cursor:pointer;z-index:40;transition:transform .12s,background .12s;}
+  .fab-cambio svg{width:22px;height:22px;}
+  .fab-cambio:hover{background:var(--blue-bg);transform:scale(1.06);}
+  .fab-cambio:active{transform:scale(.95);}
+  /* Cambio de efectivo: dos columnas */
+  .cambio-cols{display:flex;gap:12px;margin-top:8px;}
+  .cambio-col{flex:1;min-width:0;border:1px solid var(--border);border-radius:10px;padding:10px;}
+  .cambio-col-entra{background:var(--ingreso-bg);border-color:#BFE3CD;}
+  .cambio-col-sale{background:var(--egreso-bg);border-color:#F2C9C4;}
+  .cambio-col-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px;}
+  .cambio-col-entra .cambio-col-title{color:var(--ingreso);}
+  .cambio-col-sale .cambio-col-title{color:var(--egreso);}
+  .cambio-col .denom-grid{grid-template-columns:1fr;gap:5px;}
+  .cambio-col-total{margin-top:8px;padding-top:8px;border-top:1px solid rgba(0,0,0,.08);font-size:12.5px;font-weight:600;display:flex;justify-content:space-between;align-items:center;}
+  .cambio-col-total b{font-family:var(--font-mono);}
+  @media(max-width:520px){ .cambio-cols{flex-direction:column;} }
 
   /* ---- Modal genérico ---- */
   .modal-overlay{position:fixed;inset:0;background:rgba(22,33,62,.5);display:none;
@@ -484,6 +507,7 @@
   }
   .resumen{background:var(--blue-dark);border-radius:var(--radius);overflow:hidden;}
   .resumen-row{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08);gap:12px;}
+  .resumen-sep{height:8px;}
   .resumen-row:last-child{border-bottom:none;}
   .resumen-row label{color:#DCE6F4;font-size:13.5px;font-weight:600;}
   .resumen-row input{width:140px;text-align:right;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.07);
@@ -799,9 +823,13 @@
         <p class="ahint">El teórico se precarga con el saldo del flujo. Edítalo si necesitas.</p>
         <div class="resumen">
           <div class="resumen-row"><label>Efectivo pendiente</label><input type="number" step="0.01" id="arqPendiente" placeholder="0.00"></div>
-          <div class="resumen-row"><label>Teórico (Excel)</label><input type="number" step="0.01" id="arqTeorico" placeholder="0.00"></div>
+          <div class="resumen-row"><label>Teórico (flujo)</label><input type="number" step="0.01" id="arqTeorico" placeholder="0.00"></div>
+          <div class="resumen-row"><label>Excel</label><input type="number" step="0.01" id="arqExcel" placeholder="0.00"></div>
           <div class="resumen-row"><label>Sistema</label><input type="number" step="0.01" id="arqSistema" placeholder="0.00"></div>
-          <div class="resumen-row"><label>Diferencia (contado − teórico)</label><span id="arqDifValue" class="dif-value dif-ok">L 0.00</span></div>
+          <div class="resumen-sep"></div>
+          <div class="resumen-row"><label>Contado − Teórico</label><span id="arqDifValue" class="dif-value dif-ok">L 0.00</span></div>
+          <div class="resumen-row"><label>Contado − Excel</label><span id="arqDifExcel" class="dif-value dif-ok">L 0.00</span></div>
+          <div class="resumen-row"><label>Contado − Sistema</label><span id="arqDifSistema" class="dif-value dif-ok">L 0.00</span></div>
         </div>
       </div>
 
@@ -1042,9 +1070,60 @@
 </div>
 
 <!-- FAB -->
+<button class="fab-cambio" id="fabCambioBtn" aria-label="Cambio de efectivo" title="Cambio de efectivo" style="display:none;">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+</button>
 <button class="fab" id="fabBtn" aria-label="Nuevo movimiento" title="Nuevo movimiento" style="display:none;">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
 </button>
+
+<!-- Modal: Cambio de efectivo -->
+<div class="modal-overlay" id="cambioOverlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h2>Cambio de efectivo</h2>
+      <button type="button" class="modal-close" id="cambioClose">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-subtitle" style="display:block;">Registra en una sola gestión el efectivo que entra y el que sale. Genera dos movimientos ligados (un ingreso y un egreso) y ambos deben cuadrar.</div>
+
+    <div class="field" style="margin-top:12px;">
+      <label for="cambioDescripcion">Descripción</label>
+      <textarea id="cambioDescripcion" placeholder="Ej. Cambio de un billete de 500 por menudo"></textarea>
+    </div>
+    <div class="field">
+      <label for="cambioResponsableSelect">Responsable</label>
+      <div class="person-row">
+        <select id="cambioResponsableSelect"></select>
+        <button type="button" class="add-person-btn" data-target="cambioResponsableSelect">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+      <div class="add-person-inline" id="addPersonRow-cambioResponsableSelect" style="display:none;">
+        <input type="text" id="newPersonInput-cambioResponsableSelect" placeholder="Nombre de la nueva persona">
+        <button type="button" class="add-person-confirm" data-target="cambioResponsableSelect">Agregar</button>
+      </div>
+    </div>
+
+    <div class="cambio-cols">
+      <div class="cambio-col cambio-col-entra">
+        <div class="cambio-col-title">Entra (se recibe)</div>
+        <div class="denom-grid" id="cambioEntraGrid"></div>
+        <div class="cambio-col-total">Total entra <b id="cambioEntraTotal">L 0.00</b></div>
+      </div>
+      <div class="cambio-col cambio-col-sale">
+        <div class="cambio-col-title">Sale (se entrega)</div>
+        <div class="denom-grid" id="cambioSaleGrid"></div>
+        <div class="cambio-col-total">Total sale <b id="cambioSaleTotal">L 0.00</b></div>
+      </div>
+    </div>
+
+    <div class="match-indicator mi-idle" id="cambioMatch" style="margin-top:12px;">Ingresa los billetes que entran y salen.</div>
+    <div class="form-error" id="cambioError" style="display:none;"></div>
+    <button class="btn-primary" id="cambioGuardarBtn" style="margin-top:14px;">Registrar cambio</button>
+  </div>
+</div>
 
 <!-- Modal movimiento -->
 <div class="modal-overlay" id="modalOverlay">
@@ -1477,14 +1556,14 @@ function showSetup(){
   document.getElementById("setupScreen").classList.add("visible");
   document.getElementById("loadingScreen").classList.remove("visible");
   document.getElementById("mainApp").classList.remove("visible");
-  document.getElementById("fabBtn").style.display="none";
+  document.getElementById("fabBtn").style.display="none"; var _fc=document.getElementById("fabCambioBtn"); if(_fc)_fc.style.display="none";
 }
 function showLoading(msg){
   document.getElementById("loadingLabel").textContent=msg||"Cargando...";
   document.getElementById("setupScreen").classList.remove("visible");
   document.getElementById("loadingScreen").classList.add("visible");
   document.getElementById("mainApp").classList.remove("visible");
-  document.getElementById("fabBtn").style.display="none";
+  document.getElementById("fabBtn").style.display="none"; var _fc=document.getElementById("fabCambioBtn"); if(_fc)_fc.style.display="none";
 }
 function showApp(){
   document.getElementById("setupScreen").classList.remove("visible");
@@ -1495,6 +1574,8 @@ function showApp(){
 function updateFabVisibility(){
   var flujoActivo = document.getElementById("tab-flujo").classList.contains("active");
   document.getElementById("fabBtn").style.display = flujoActivo ? "flex" : "none";
+  var fc=document.getElementById("fabCambioBtn");
+  if(fc) fc.style.display = flujoActivo ? "flex" : "none";
 }
 
 function setSyncState(status, msg){
@@ -1700,6 +1781,7 @@ function getPendientesList(){
     return m.tipo==="pendiente_banco" || m.esPendiente;
   }).map(function(m){
     return {
+      id: m.id,
       descripcion: m.descripcion||"(sin descripción)",
       origen: m.tipo==="pendiente_banco" ? "banco" : "caja",
       esExterno: !!m.esExterno,
@@ -1854,7 +1936,7 @@ function renderPendientesDetalle(total){
 
   function filas(items){
     return items.map(function(p){
-      return '<div class="pd-item">'+
+      return '<div class="pd-item pd-clickable" data-pd-id="'+p.id+'">'+
         '<span class="pd-desc">'+esc(p.descripcion)+' <small>('+p.origen+')</small></span>'+
         '<span class="pd-monto">'+fmt(p.monto)+'</span></div>';
     }).join("");
@@ -1874,7 +1956,12 @@ function renderPendientesDetalle(total){
   } else {
     html=grupo("Normal", normales, totalNorm)+grupo("Externos", externos, totalExt);
   }
-  document.getElementById("pdLista").innerHTML=html;
+  var cont=document.getElementById("pdLista");
+  cont.innerHTML=html;
+  // Click en un pendiente abre su detalle
+  cont.querySelectorAll(".pd-clickable").forEach(function(item){
+    item.addEventListener("click",function(){ abrirDetalleMovimiento(item.getAttribute("data-pd-id")); });
+  });
 }
 function renderStatusTarjeta(id, r, sujeto, nombre){
   var el=document.getElementById(id); if(!el) return;
@@ -2040,7 +2127,8 @@ function renderPersonasOptions(){
     {el:document.getElementById("entregadoASelect"),empty:true},
     {el:document.getElementById("ordRecibeSelect"),empty:false},
     {el:document.getElementById("ordAutorizadorSelect"),empty:false},
-    {el:document.getElementById("ordFirmarAutorizador"),empty:false}
+    {el:document.getElementById("ordFirmarAutorizador"),empty:false},
+    {el:document.getElementById("cambioResponsableSelect"),empty:false}
   ];
   cfg.forEach(function(c){
     if(!c.el) return;
@@ -3151,6 +3239,8 @@ arqDenomBody.addEventListener("blur",function(e){
   }
 },true);
 document.getElementById("arqTeorico").addEventListener("input",function(){ arqRecalcDif(arqTotalContado()); });
+document.getElementById("arqExcel").addEventListener("input",function(){ arqRecalcDif(arqTotalContado()); });
+document.getElementById("arqSistema").addEventListener("input",function(){ arqRecalcDif(arqTotalContado()); });
 
 // Devuelve el inventario teórico de billetes por denominación (del flujo)
 function arqInventarioTeorico(){ return calcInventario(); }
@@ -3181,14 +3271,32 @@ function arqTotalContado(){
   return round2(total);
 }
 function arqRecalcular(){ arqRecalcDif(arqTotalContado()); }
-function arqRecalcDif(total){
-  var teorico=parseFloat(document.getElementById("arqTeorico").value)||0;
-  var dif=round2(total-teorico);
-  var el=document.getElementById("arqDifValue");
+// Devuelve la clase de color para una diferencia (verde cuadra, azul sobra, rojo falta)
+function difClase(dif){
+  if(Math.abs(dif)<0.005) return "dif-ok";
+  return dif<0 ? "dif-bad" : "dif-azul";
+}
+// Pinta una celda de diferencia: azul si sobra (contado>referencia), rojo si falta, verde si cuadra
+function pintarDif(elId, dif){
+  var el=document.getElementById(elId); if(!el) return;
   el.textContent=fmt(dif);
   el.classList.remove("dif-ok","dif-bad","dif-warn","dif-azul");
   if(Math.abs(dif)<0.005) el.classList.add("dif-ok");
   else if(dif<0) el.classList.add("dif-bad"); else el.classList.add("dif-azul");
+}
+function arqRecalcDif(total){
+  var teorico=parseFloat(document.getElementById("arqTeorico").value)||0;
+  var excel=parseFloat(document.getElementById("arqExcel").value)||0;
+  var sistema=parseFloat(document.getElementById("arqSistema").value)||0;
+  var dif=round2(total-teorico);
+  pintarDif("arqDifValue", dif);
+  // Solo mostrar dif de Excel/Sistema si hay un valor ingresado (evita comparar contra 0)
+  var elEx=document.getElementById("arqDifExcel");
+  var elSi=document.getElementById("arqDifSistema");
+  if(document.getElementById("arqExcel").value.trim()!==""){ elEx.parentElement.style.opacity="1"; pintarDif("arqDifExcel", round2(total-excel)); }
+  else { elEx.textContent="—"; elEx.className="dif-value dif-ok"; elEx.parentElement.style.opacity=".5"; }
+  if(document.getElementById("arqSistema").value.trim()!==""){ elSi.parentElement.style.opacity="1"; pintarDif("arqDifSistema", round2(total-sistema)); }
+  else { elSi.textContent="—"; elSi.className="dif-value dif-ok"; elSi.parentElement.style.opacity=".5"; }
   return dif;
 }
 
@@ -3259,6 +3367,11 @@ function prepararArqueo(){
   if(!document.getElementById("arqTeorico").value) document.getElementById("arqTeorico").value=t.saldoActual;
   var pendCalc=calcEfectivoPendiente();
   if(!document.getElementById("arqPendiente").value && pendCalc) document.getElementById("arqPendiente").value=pendCalc;
+  // Precargar Excel y Sistema con los saldos guardados en configuración (si existen)
+  if(!document.getElementById("arqExcel").value && state.saldoExcel!==null && state.saldoExcel!==undefined)
+    document.getElementById("arqExcel").value=state.saldoExcel;
+  if(!document.getElementById("arqSistema").value && state.saldoSistema!==null && state.saldoSistema!==undefined)
+    document.getElementById("arqSistema").value=state.saldoSistema;
   arqRecalcular();
 }
 arqSetFechaHora(); arqRecalcular();
@@ -3280,6 +3393,7 @@ function arqLimpiar(){
   arqDenomBody.querySelectorAll(".qty-input").forEach(function(i){ i.value=""; });
   document.getElementById("arqPendiente").value="";
   document.getElementById("arqTeorico").value="";
+  document.getElementById("arqExcel").value="";
   document.getElementById("arqSistema").value="";
   document.getElementById("arqNotas").value="";
   document.getElementById("arqResponsable").value="";
@@ -3328,6 +3442,7 @@ document.getElementById("arqGuardarBtn").addEventListener("click",function(){
     denominaciones:denominaciones, totalContado:round2(totalGeneral),
     efectivoPendiente:parseFloat(document.getElementById("arqPendiente").value)||0,
     teorico:teorico, sistema:parseFloat(document.getElementById("arqSistema").value)||0,
+    excel:parseFloat(document.getElementById("arqExcel").value)||0,
     diferencia:round2(totalGeneral-teorico),
     notas:document.getElementById("arqNotas").value.trim(),
     pendientesLista:pendientesSnapshot,
@@ -3523,8 +3638,12 @@ function arqAbrirDetalle(id){
     '<div class="resumen" style="margin-top:16px;">'+
       '<div class="resumen-row"><label>Efectivo pendiente</label><span class="mono" style="color:#fff;">'+fmt(r.efectivoPendiente)+'</span></div>'+
       '<div class="resumen-row"><label>Teórico</label><span class="mono" style="color:#fff;">'+fmt(r.teorico)+'</span></div>'+
+      (r.excel?'<div class="resumen-row"><label>Excel</label><span class="mono" style="color:#fff;">'+fmt(r.excel)+'</span></div>':'')+
       '<div class="resumen-row"><label>Sistema</label><span class="mono" style="color:#fff;">'+fmt(r.sistema)+'</span></div>'+
-      '<div class="resumen-row"><label>Diferencia</label><span class="dif-value mono '+(Math.abs(r.diferencia)<0.005?"dif-ok":(r.diferencia<0?"dif-bad":"dif-azul"))+'">'+fmt(r.diferencia)+'</span></div>'+
+      '<div class="resumen-sep"></div>'+
+      '<div class="resumen-row"><label>Contado − Teórico</label><span class="dif-value mono '+difClase(r.diferencia)+'">'+fmt(r.diferencia)+'</span></div>'+
+      (r.excel?'<div class="resumen-row"><label>Contado − Excel</label><span class="dif-value mono '+difClase(round2(r.totalContado-r.excel))+'">'+fmt(round2(r.totalContado-r.excel))+'</span></div>':'')+
+      (r.sistema?'<div class="resumen-row"><label>Contado − Sistema</label><span class="dif-value mono '+difClase(round2(r.totalContado-r.sistema))+'">'+fmt(round2(r.totalContado-r.sistema))+'</span></div>':'')+
     '</div>'+
     (r.notas?'<div class="notas-box">'+esc(r.notas)+'</div>':'')+
     pendHtml+
@@ -4072,9 +4191,132 @@ document.getElementById("ordPDFBtn").addEventListener("click",function(){
 });
 
 // ================================================================
+// ================== CAMBIO DE EFECTIVO ==========================
+// Genera dos movimientos ligados (ingreso + egreso) que deben cuadrar.
+// ================================================================
+var cambioOverlay=document.getElementById("cambioOverlay");
+
+// Construir las dos grillas de denominación (entra / sale)
+function buildCambioGrids(){
+  ["cambioEntra","cambioSale"].forEach(function(pref){
+    var grid=document.getElementById(pref+"Grid");
+    if(!grid) return;
+    grid.innerHTML=DENOMINACIONES.map(function(v){
+      return '<div class="denom-cell">'+
+        '<label>L '+v+'</label>'+
+        '<input type="text" inputmode="numeric" id="'+pref+'_'+v+'" placeholder="0" autocomplete="off">'+
+        '<span class="denom-sub" id="'+pref+'sub_'+v+'">L 0.00</span>'+
+      '</div>';
+    }).join("");
+    grid.addEventListener("input",function(e){ if(e.target.matches("input")) recalcCambio(); });
+    grid.addEventListener("blur",function(e){
+      if(e.target.matches("input")){ resolverInputExpr(e.target); recalcCambio(); }
+    },true);
+  });
+}
+
+function leerCambioLado(pref){
+  var d={},total=0;
+  DENOMINACIONES.forEach(function(v){
+    var inp=document.getElementById(pref+"_"+v);
+    var ev=evalExpr(inp.value);
+    var n=(ev!==null)?Math.round(ev):0; if(n<0)n=0;
+    d[v]=n; var sub=n*v; total+=sub;
+    document.getElementById(pref+"sub_"+v).textContent=fmt(sub);
+  });
+  return {denoms:d,total:round2(total)};
+}
+
+function recalcCambio(){
+  var entra=leerCambioLado("cambioEntra");
+  var sale=leerCambioLado("cambioSale");
+  document.getElementById("cambioEntraTotal").textContent=fmt(entra.total);
+  document.getElementById("cambioSaleTotal").textContent=fmt(sale.total);
+  var ind=document.getElementById("cambioMatch");
+  var dif=round2(entra.total-sale.total);
+  if(entra.total===0 && sale.total===0){
+    ind.className="match-indicator mi-idle";
+    ind.textContent="Ingresa los billetes que entran y salen.";
+  } else if(Math.abs(dif)<0.005){
+    ind.className="match-indicator mi-ok";
+    ind.innerHTML=ICONS.check+" Cuadra: entra y sale "+fmt(entra.total);
+  } else {
+    ind.className="match-indicator mi-falta";
+    ind.innerHTML=ICONS.alert+" No cuadra: "+(dif>0?("entra "+fmt(dif)+" más"):("sale "+fmt(Math.abs(dif))+" más"));
+  }
+  return {entra:entra,sale:sale,dif:dif};
+}
+
+function abrirCambio(){
+  renderPersonasOptions();
+  document.getElementById("cambioDescripcion").value="";
+  document.getElementById("cambioResponsableSelect").value="";
+  DENOMINACIONES.forEach(function(v){
+    document.getElementById("cambioEntra_"+v).value="";
+    document.getElementById("cambioSale_"+v).value="";
+  });
+  document.getElementById("cambioError").style.display="none";
+  recalcCambio();
+  cambioOverlay.classList.add("open");
+}
+function cerrarCambio(){ cambioOverlay.classList.remove("open"); }
+
+document.getElementById("fabCambioBtn").addEventListener("click",abrirCambio);
+document.getElementById("cambioClose").addEventListener("click",cerrarCambio);
+cambioOverlay.addEventListener("click",function(e){ if(e.target===cambioOverlay) cerrarCambio(); });
+
+document.getElementById("cambioGuardarBtn").addEventListener("click",function(){
+  var errEl=document.getElementById("cambioError");
+  var r=recalcCambio();
+  var responsable=document.getElementById("cambioResponsableSelect").value;
+  var descripcion=document.getElementById("cambioDescripcion").value.trim();
+
+  if(!responsable){ errEl.textContent="Selecciona el responsable."; errEl.style.display="block"; return; }
+  if(r.entra.total<=0 || r.sale.total<=0){ errEl.textContent="Ingresa billetes en ambos lados (entra y sale)."; errEl.style.display="block"; return; }
+  if(Math.abs(r.dif)>=0.005){ errEl.textContent="El cambio no cuadra: lo que entra ("+fmt(r.entra.total)+") debe igualar lo que sale ("+fmt(r.sale.total)+")."; errEl.style.display="block"; return; }
+  errEl.style.display="none";
+
+  if(!descripcion) descripcion="Cambio de efectivo";
+  var fechaISO=ahoraLocalISO();
+  // IDs ligados entre sí
+  var idIng=uid(), idEg=uid();
+  var movIngreso={ id:idIng, fecha:fechaISO, tipo:"ingreso",
+    responsable:responsable, entregadoA:"",
+    descripcion:descripcion+" (entra)", denominaciones:r.entra.denoms, monto:r.entra.total,
+    firmaEntrega:"", firmaRecibe:"", esPendiente:false, origenPendiente:"",
+    esExterno:false, cambioDe:[idEg] };
+  var movEgreso={ id:idEg, fecha:fechaISO, tipo:"egreso",
+    responsable:responsable, entregadoA:"",
+    descripcion:descripcion+" (sale)", denominaciones:r.sale.denoms, monto:r.sale.total,
+    firmaEntrega:"", firmaRecibe:"", esPendiente:false, origenPendiente:"",
+    esExterno:false, cambioDe:[idIng] };
+
+  var btn=document.getElementById("cambioGuardarBtn");
+  btn.disabled=true; btn.textContent="Registrando...";
+  setSyncState("syncing","Registrando cambio...");
+
+  // Guardar ambos (idempotente). Se agregan al estado al confirmar cada uno.
+  Promise.all([
+    apiGuardarMovimiento("addMovimiento",movIngreso),
+    apiGuardarMovimiento("addMovimiento",movEgreso)
+  ]).then(function(){
+    state.movimientos=state.movimientos.filter(function(m){ return m.id!==idIng && m.id!==idEg; });
+    state.movimientos.push(movIngreso, movEgreso);
+    cerrarCambio(); renderAll();
+    setSyncState("ok","Cambio registrado (2 movimientos)");
+  }).catch(function(err){
+    errEl.textContent="Error al registrar: "+err.message+". Reintenta."; errEl.style.display="block";
+    setSyncState("err");
+  }).then(function(){
+    btn.disabled=false; btn.textContent="Registrar cambio";
+  });
+});
+
+// ================================================================
 // Init
 // ================================================================
 buildDenomGrid();
+buildCambioGrids();
 if(scriptUrl){ loadData(false); } else { showSetup(); }
 
 })();
