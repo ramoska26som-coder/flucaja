@@ -1294,8 +1294,9 @@
       </button>
     </div>
     <div id="detalleContenido"></div>
-    <div class="mov-actions" style="margin-top:16px;justify-content:flex-end;gap:10px;">
+    <div class="mov-actions" style="margin-top:16px;justify-content:flex-end;gap:10px;flex-wrap:wrap;">
       <button type="button" class="btn btn-danger" id="detalleEliminarBtn">Eliminar</button>
+      <button type="button" class="btn" id="detallePasarBtn" style="display:none;border-color:var(--ingreso);color:var(--ingreso);">Pasar a egreso</button>
       <button type="button" class="btn btn-ghost" id="detalleFirmarBtn" style="border-color:var(--blue);color:var(--blue);">Firmar</button>
       <button type="button" class="btn btn-blue" id="detalleEditarBtn">Editar</button>
     </div>
@@ -3012,6 +3013,10 @@ function abrirDetalleMovimiento(id){
   document.getElementById("detalleContenido").innerHTML=html;
   detalleOverlay.classList.add("open");
 
+  // Botón "Pasar a egreso": solo para pendientes de caja
+  var btnPasarDet=document.getElementById("detallePasarBtn");
+  if(btnPasarDet) btnPasarDet.style.display=(m.esPendiente && !esBanco)?"inline-flex":"none";
+
   // Navegación entre movimientos ligados
   document.querySelectorAll("#detalleContenido [data-ir-mov]").forEach(function(li){
     li.addEventListener("click",function(){ abrirDetalleMovimiento(li.getAttribute("data-ir-mov")); });
@@ -3044,6 +3049,9 @@ document.getElementById("detalleClose").addEventListener("click",cerrarDetalle);
 detalleOverlay.addEventListener("click",function(e){ if(e.target===detalleOverlay) cerrarDetalle(); });
 document.getElementById("detalleEditarBtn").addEventListener("click",function(){
   var id=detalleCurrentId; cerrarDetalle(); openModalEdit(id);
+});
+document.getElementById("detallePasarBtn").addEventListener("click",function(){
+  var id=detalleCurrentId; cerrarDetalle(); pasarPendienteAEgreso(id);
 });
 document.getElementById("detalleEliminarBtn").addEventListener("click",function(){
   var id=detalleCurrentId;
