@@ -213,6 +213,18 @@
   .search-box input{width:100%;border:1px solid var(--border);border-radius:999px;padding:7px 10px 7px 28px;
     font-size:13px;font-family:var(--font-ui);background:var(--surface-2);color:var(--ink);}
   .search-box input:focus{outline:none;border-color:var(--blue);background:var(--surface);}
+  /* Panel de filtros avanzados */
+  .filtro-btn#filtrosAvanzadosBtn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+  .filtros-panel{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;}
+  .fp-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .fp-field{display:flex;flex-direction:column;gap:4px;min-width:0;}
+  .fp-field label{font-size:12px;font-weight:600;color:var(--ink-soft);}
+  .fp-field select,.fp-field input{border:1px solid var(--border);border-radius:8px;padding:8px 10px;
+    font-family:var(--font-ui);font-size:14px;background:var(--surface);width:100%;}
+  .fp-field select:focus,.fp-field input:focus{outline:none;border-color:var(--blue);}
+  .fp-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;flex-wrap:wrap;}
+  .fp-resumen{font-size:12.5px;color:var(--ink-soft);}
+  @media(max-width:520px){ .fp-grid{grid-template-columns:1fr;} }
 
   /* ---- Grupo de fecha ---- */
   .fecha-group{border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;}
@@ -768,10 +780,38 @@
           <button class="filtro-btn active" data-filtro="todos">Todos</button>
           <button class="filtro-btn" data-filtro="ingreso">Ingresos</button>
           <button class="filtro-btn" data-filtro="egreso">Egresos</button>
+          <button class="filtro-btn" id="filtrosAvanzadosBtn" title="Filtros avanzados">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;vertical-align:-1px;"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            Filtros
+          </button>
         </div>
         <div class="search-box">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input type="text" id="searchInput" placeholder="Buscar...">
+        </div>
+      </div>
+      <div class="filtros-panel" id="filtrosPanel" style="display:none;">
+        <div class="fp-grid">
+          <div class="fp-field">
+            <label for="filtroResponsable">Responsable</label>
+            <select id="filtroResponsable"><option value="">Todos</option></select>
+          </div>
+          <div class="fp-field">
+            <label for="filtroEntregadoA">Entregado a</label>
+            <select id="filtroEntregadoA"><option value="">Todos</option></select>
+          </div>
+          <div class="fp-field">
+            <label for="filtroMontoMin">Monto mínimo</label>
+            <input type="number" step="0.01" inputmode="decimal" id="filtroMontoMin" placeholder="Sin mínimo">
+          </div>
+          <div class="fp-field">
+            <label for="filtroMontoMax">Monto máximo</label>
+            <input type="number" step="0.01" inputmode="decimal" id="filtroMontoMax" placeholder="Sin máximo">
+          </div>
+        </div>
+        <div class="fp-actions">
+          <span id="filtrosResumen" class="fp-resumen"></span>
+          <button type="button" class="btn btn-ghost" id="filtrosLimpiarBtn">Limpiar filtros</button>
         </div>
       </div>
       <div id="historialGroups"></div>
@@ -1393,6 +1433,10 @@ var state = { saldoInicial:0, movimientos:[], saldoExcel:null, saldoSistema:null
 var selectedTipo = "ingreso";
 var filtroTipo = "todos";
 var searchQuery = "";
+var filtroResponsable = "";
+var filtroEntregadoA = "";
+var filtroMontoMin = null;
+var filtroMontoMax = null;
 var editingId = null;
 
 // ================================================================
@@ -2014,6 +2058,11 @@ function renderHistorialGroups(){
              (m.entregadoA||"").toLowerCase().indexOf(q)!==-1;
     });
   }
+  // Filtros avanzados
+  if(filtroResponsable) movs=movs.filter(function(m){ return m.responsable===filtroResponsable; });
+  if(filtroEntregadoA) movs=movs.filter(function(m){ return (m.entregadoA||"")===filtroEntregadoA; });
+  if(filtroMontoMin!==null) movs=movs.filter(function(m){ return m.monto>=filtroMontoMin; });
+  if(filtroMontoMax!==null) movs=movs.filter(function(m){ return m.monto<=filtroMontoMax; });
 
   if(!movs.length){
     cont.innerHTML='<div class="empty-state">'+ICONS.inbox+'<div>'+(state.movimientos.length===0
@@ -2074,7 +2123,7 @@ function renderHistorialGroups(){
       '</div>';
     }).join("");
 
-    var hayFiltroDia=(filtroTipo!=="todos")||(searchQuery.trim()!=="");
+    var hayFiltroDia=hayFiltrosActivos();
     var abierto=(k===hoy || hayFiltroDia)?" open":"";
     return '<details class="fecha-group"'+abierto+'>'+
       '<summary>'+ICONS.chevron+
@@ -2107,7 +2156,7 @@ function renderHistorialGroups(){
     ingM=round2(ingM); egM=round2(egM);
     var diasHtml=g.dias.map(htmlDia).join("");
     // Expandir el mes actual siempre; si hay filtro o búsqueda activa, expandir todos
-    var hayFiltro=(filtroTipo!=="todos")||(searchQuery.trim()!=="");
+    var hayFiltro=hayFiltrosActivos();
     var abiertoMes=(g.mes===mesActual || hayFiltro)?" open":"";
     return '<details class="mes-group"'+abiertoMes+'>'+
       '<summary class="mes-summary">'+ICONS.chevron+
@@ -3072,13 +3121,78 @@ document.getElementById("detalleFirmarBtn").addEventListener("click",function(){
 // ================================================================
 // Filtros e historial
 // ================================================================
-document.querySelectorAll(".filtro-btn").forEach(function(btn){
+document.querySelectorAll(".filtro-btn[data-filtro]").forEach(function(btn){
   btn.addEventListener("click",function(){
-    document.querySelectorAll(".filtro-btn").forEach(function(b){ b.classList.remove("active"); });
+    document.querySelectorAll(".filtro-btn[data-filtro]").forEach(function(b){ b.classList.remove("active"); });
     btn.classList.add("active"); filtroTipo=btn.getAttribute("data-filtro"); renderHistorialGroups();
   });
 });
 document.getElementById("searchInput").addEventListener("input",function(e){ searchQuery=e.target.value; renderHistorialGroups(); });
+
+// ---- Filtros avanzados: responsable, entregado a, rango de monto ----
+function hayFiltrosActivos(){
+  return (filtroTipo!=="todos") || (searchQuery.trim()!=="") ||
+         !!filtroResponsable || !!filtroEntregadoA ||
+         filtroMontoMin!==null || filtroMontoMax!==null;
+}
+
+// Rellena los selects de responsable y entregadoA con los valores presentes
+function poblarFiltrosAvanzados(){
+  var resp=document.getElementById("filtroResponsable");
+  var entr=document.getElementById("filtroEntregadoA");
+  if(!resp||!entr) return;
+  var responsables={}, entregados={};
+  state.movimientos.forEach(function(m){
+    if(m.responsable) responsables[m.responsable]=true;
+    if(m.entregadoA) entregados[m.entregadoA]=true;
+  });
+  var listaR=Object.keys(responsables).sort();
+  var listaE=Object.keys(entregados).sort();
+  resp.innerHTML='<option value="">Todos</option>'+listaR.map(function(n){ return '<option value="'+esc(n)+'">'+esc(n)+'</option>'; }).join("");
+  entr.innerHTML='<option value="">Todos</option>'+listaE.map(function(n){ return '<option value="'+esc(n)+'">'+esc(n)+'</option>'; }).join("");
+  resp.value=filtroResponsable;
+  entr.value=filtroEntregadoA;
+}
+
+function actualizarResumenFiltros(){
+  var partes=[];
+  if(filtroResponsable) partes.push("Responsable: "+filtroResponsable);
+  if(filtroEntregadoA) partes.push("Entregado a: "+filtroEntregadoA);
+  if(filtroMontoMin!==null) partes.push("Mín: "+fmt(filtroMontoMin));
+  if(filtroMontoMax!==null) partes.push("Máx: "+fmt(filtroMontoMax));
+  document.getElementById("filtrosResumen").textContent=partes.length?partes.join(" · "):"Sin filtros avanzados activos";
+  // Marcar el botón como activo si hay algún filtro avanzado
+  var btn=document.getElementById("filtrosAvanzadosBtn");
+  var hayAvanzados=!!filtroResponsable||!!filtroEntregadoA||filtroMontoMin!==null||filtroMontoMax!==null;
+  btn.classList.toggle("active", hayAvanzados);
+}
+
+document.getElementById("filtrosAvanzadosBtn").addEventListener("click",function(){
+  var panel=document.getElementById("filtrosPanel");
+  var abrir=panel.style.display==="none";
+  if(abrir){ poblarFiltrosAvanzados(); actualizarResumenFiltros(); }
+  panel.style.display=abrir?"block":"none";
+});
+document.getElementById("filtroResponsable").addEventListener("change",function(e){
+  filtroResponsable=e.target.value; actualizarResumenFiltros(); renderHistorialGroups();
+});
+document.getElementById("filtroEntregadoA").addEventListener("change",function(e){
+  filtroEntregadoA=e.target.value; actualizarResumenFiltros(); renderHistorialGroups();
+});
+document.getElementById("filtroMontoMin").addEventListener("input",function(e){
+  var v=parseFloat(e.target.value); filtroMontoMin=isNaN(v)?null:v; actualizarResumenFiltros(); renderHistorialGroups();
+});
+document.getElementById("filtroMontoMax").addEventListener("input",function(e){
+  var v=parseFloat(e.target.value); filtroMontoMax=isNaN(v)?null:v; actualizarResumenFiltros(); renderHistorialGroups();
+});
+document.getElementById("filtrosLimpiarBtn").addEventListener("click",function(){
+  filtroResponsable=""; filtroEntregadoA=""; filtroMontoMin=null; filtroMontoMax=null;
+  document.getElementById("filtroResponsable").value="";
+  document.getElementById("filtroEntregadoA").value="";
+  document.getElementById("filtroMontoMin").value="";
+  document.getElementById("filtroMontoMax").value="";
+  actualizarResumenFiltros(); renderHistorialGroups();
+});
 
 // ================================================================
 // Recargar / config
